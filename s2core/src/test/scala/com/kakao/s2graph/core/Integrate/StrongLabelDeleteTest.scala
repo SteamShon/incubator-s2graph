@@ -165,7 +165,9 @@ class StrongLabelDeleteTest extends IntegrateCommon {
     val maxSize = 100
     val deleteSize = 10
     val numOfConcurrentBatch = 100
-    val src = System.currentTimeMillis()
+    val ts = System.currentTimeMillis()
+    val deletedAt = ts + 100
+    val src = ts
     val tgts = (0 until maxSize).map { ith => src + ith }
     val deleteTgts = Random.shuffle(tgts).take(deleteSize)
     val insertRequests = tgts.map { tgt =>
@@ -181,11 +183,10 @@ class StrongLabelDeleteTest extends IntegrateCommon {
 
     Await.result(Future.sequence(futures), Duration(20, TimeUnit.MINUTES))
 
-    val deletedAt = System.currentTimeMillis()
     val deleteAllRequest = Json.arr(Json.obj("label" -> labelName, "ids" -> Json.arr(src), "timestamp" -> deletedAt))
 
     deleteAllSync(deleteAllRequest)
-
+    
     val result = getEdgesSync(query(id = src))
     println(result)
     val resultEdges = (result \ "results").as[Seq[JsValue]]
