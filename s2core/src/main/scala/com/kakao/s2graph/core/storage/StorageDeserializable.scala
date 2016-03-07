@@ -36,6 +36,28 @@ object StorageDeserializable {
     ret
   }
 
+  def bytesToKeyValuesIntKey(bytes: Array[Byte],
+                       offset: Int,
+                       length: Int,
+                       version: String): (Array[(Int, InnerValLike)], Int) = {
+    var pos = offset
+    val len = bytes(pos)
+    pos += 1
+    val kvs = new Array[(Int, InnerValLike)](len)
+    var i = 0
+    while (i < len) {
+      val k = Bytes.toInt(bytes, pos, 4)
+      pos += 4
+      val (v, numOfBytesUsed) = InnerVal.fromBytes(bytes, pos, 0, version)
+      pos += numOfBytesUsed
+      kvs(i) = (k -> v)
+      i += 1
+    }
+    val ret = (kvs, pos)
+    //    logger.debug(s"bytesToProps: $ret")
+    ret
+  }
+
   def bytesToKeyValuesWithTs(bytes: Array[Byte],
                              offset: Int,
                              version: String): (Array[(Byte, InnerValLikeWithTs)], Int) = {

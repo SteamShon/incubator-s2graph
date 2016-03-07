@@ -1,4 +1,4 @@
-package com.kakao.s2graph.core.storage.serde.vertex
+package com.kakao.s2graph.core.storage.serde.vertex.tall
 
 import com.kakao.s2graph.core.Vertex
 import com.kakao.s2graph.core.storage.{SKeyValue, Serializable}

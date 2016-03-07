@@ -58,6 +58,9 @@ class RocksDBStorage(override val config: Config)(implicit ec: ExecutionContext)
   override def indexEdgeSerializer(indexEdge: IndexEdge) =
     new serde.indexedge.tall.IndexEdgeSerializable(indexEdge)
 
+  override def vertexSerializer(vertex: Vertex) =
+    new serde.vertex.tall.VertexSerializable(vertex)
+
   override val snapshotEdgeDeserializers = Map(
     VERSION1 -> new tall.SnapshotEdgeDeserializable,
     VERSION2 -> new tall.SnapshotEdgeDeserializable,
@@ -71,6 +74,14 @@ class RocksDBStorage(override val config: Config)(implicit ec: ExecutionContext)
     VERSION3 -> new indexedge.tall.IndexEdgeDeserializable(RocksDBHelper.bytesToLong),
     VERSION4 -> new indexedge.tall.IndexEdgeDeserializable(RocksDBHelper.bytesToLong)
   )
+
+  override val vertexDeserializers = Map(
+    VERSION1 -> new serde.vertex.tall.VertexDeserializable,
+    VERSION2 -> new serde.vertex.tall.VertexDeserializable,
+    VERSION3 -> new serde.vertex.tall.VertexDeserializable,
+    VERSION4 -> new serde.vertex.tall.VertexDeserializable
+  )
+
 
   val emptyBytes = Array.empty[Byte]
   val table = Array.empty[Byte]

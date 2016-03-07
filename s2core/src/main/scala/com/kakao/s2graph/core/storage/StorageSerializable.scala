@@ -21,6 +21,14 @@ object StorageSerializable {
     bytes
   }
 
+  def propsToKeyValuesIntKey(props: Seq[(Int, InnerValLike)]): Array[Byte] = {
+    val len = props.length
+    assert(len < Byte.MaxValue)
+    var bytes = Array.fill(1)(len.toByte)
+    for ((k, v) <- props) bytes = Bytes.add(bytes, Bytes.toBytes(k), v.bytes)
+    bytes
+  }
+
   def propsToKeyValuesWithTs(props: Seq[(Byte, InnerValLikeWithTs)]): Array[Byte] = {
     val len = props.length
     assert(len < Byte.MaxValue)

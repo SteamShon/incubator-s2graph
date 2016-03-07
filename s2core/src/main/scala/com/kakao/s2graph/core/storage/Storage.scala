@@ -35,10 +35,10 @@ abstract class Storage[R](val config: Config)(implicit ec: ExecutionContext) {
   /**
    * Compatibility table
    * | label schema version | snapshot edge | index edge | vertex | note |
-   * | v1 | serde.snapshotedge.wide | serde.indexedge.wide | serde.vertex | do not use this. this exist only for backward compatibility issue |
-   * | v2 | serde.snapshotedge.wide | serde.indexedge.wide | serde.vertex | do not use this. this exist only for backward compatibility issue |
-   * | v3 | serde.snapshotedge.tall | serde.indexedge.wide | serde.vertex | recommended with HBase. current stable schema |
-   * | v4 | serde.snapshotedge.tall | serde.indexedge.tall | serde.vertex | experimental schema. use scanner instead of get |
+   * | v1 | serde.snapshotedge.wide | serde.indexedge.wide | serde.vertex.wide | do not use this. this exist only for backward compatibility issue |
+   * | v2 | serde.snapshotedge.wide | serde.indexedge.wide | serde.vertex.wide | do not use this. this exist only for backward compatibility issue |
+   * | v3 | serde.snapshotedge.tall | serde.indexedge.wide | serde.vertex.wide | recommended with HBase. current stable schema |
+   * | v4 | serde.snapshotedge.tall | serde.indexedge.tall | serde.vertex.tall | experimental schema. use scanner instead of get |
    *
    */
 
@@ -75,7 +75,13 @@ abstract class Storage[R](val config: Config)(implicit ec: ExecutionContext) {
    * @param vertex: vertex to serialize
    * @return serializer implementation
    */
-  def vertexSerializer(vertex: Vertex) = new VertexSerializable(vertex)
+  def vertexSerializer(vertex: Vertex): Serializable[Vertex] = {
+    vertex.schemaVer match {
+      case VERSION1 | VERSION2 | VERSION3 => new serde.vertex.wide.VertexSerializable(vertex)
+      case VERSION4 => new serde.vertex.tall.VertexSerializable(vertex)
+      case _ => throw new RuntimeException(s"not supported version: ${vertex.schemaVer}")
+    }
+  }
 
   /**
    * create deserializer that can parse stored CanSKeyValue into snapshotEdge.
@@ -93,6 +99,7 @@ abstract class Storage[R](val config: Config)(implicit ec: ExecutionContext) {
     VERSION3 -> new tall.SnapshotEdgeDeserializable,
     VERSION4 -> new tall.SnapshotEdgeDeserializable
   )
+
   def snapshotEdgeDeserializer(schemaVer: String) =
     snapshotEdgeDeserializers.get(schemaVer).getOrElse(throw new RuntimeException(s"not supported version: ${schemaVer}"))
 
@@ -108,7 +115,16 @@ abstract class Storage[R](val config: Config)(implicit ec: ExecutionContext) {
     indexEdgeDeserializers.get(schemaVer).getOrElse(throw new RuntimeException(s"not supported version: ${schemaVer}"))
 
   /** create deserializer that can parser stored CanSKeyValue into vertex. */
-  val vertexDeserializer = new VertexDeserializable
+  val vertexDeserializers: Map[String, Deserializable[Vertex]] = Map(
+    VERSION1 -> new serde.vertex.wide.VertexDeserializable,
+    VERSION2 -> new serde.vertex.wide.VertexDeserializable,
+    VERSION3 -> new serde.vertex.wide.VertexDeserializable,
+    VERSION4 -> new serde.vertex.tall.VertexDeserializable
+  )
+
+  def vertexDeserializer(schemaVer: String): Deserializable[Vertex] =
+    vertexDeserializers.get(schemaVer).getOrElse(throw new RuntimeException(s"not supported version: ${schemaVer}"))
+
 
 
   /**
@@ -250,7 +266,7 @@ abstract class Storage[R](val config: Config)(implicit ec: ExecutionContext) {
                    kvs: Seq[SKeyValue],
                    version: String): Option[Vertex] = {
       if (kvs.isEmpty) None
-      else vertexDeserializer.fromKeyValues(queryParam, kvs, version, None)
+      else vertexDeserializer(version).fromKeyValues(queryParam, kvs, version, None)
     }
 
     val futures = vertices.map { vertex =>

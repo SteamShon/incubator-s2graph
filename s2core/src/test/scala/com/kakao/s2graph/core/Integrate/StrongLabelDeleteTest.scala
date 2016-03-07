@@ -186,7 +186,7 @@ class StrongLabelDeleteTest extends IntegrateCommon {
     val deleteAllRequest = Json.arr(Json.obj("label" -> labelName, "ids" -> Json.arr(src), "timestamp" -> deletedAt))
 
     deleteAllSync(deleteAllRequest)
-    
+
     val result = getEdgesSync(query(id = src))
     println(result)
     val resultEdges = (result \ "results").as[Seq[JsValue]]
