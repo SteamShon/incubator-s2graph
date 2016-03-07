@@ -66,10 +66,10 @@ class RocksDBStorage(override val config: Config)(implicit ec: ExecutionContext)
   )
 
   override val indexEdgeDeserializers = Map(
-    VERSION1 -> new indexedge.tall.IndexEdgeDeserializable,
-    VERSION2 -> new indexedge.tall.IndexEdgeDeserializable,
-    VERSION3 -> new indexedge.tall.IndexEdgeDeserializable,
-    VERSION4 -> new indexedge.tall.IndexEdgeDeserializable
+    VERSION1 -> new indexedge.tall.IndexEdgeDeserializable(RocksDBHelper.bytesToLong),
+    VERSION2 -> new indexedge.tall.IndexEdgeDeserializable(RocksDBHelper.bytesToLong),
+    VERSION3 -> new indexedge.tall.IndexEdgeDeserializable(RocksDBHelper.bytesToLong),
+    VERSION4 -> new indexedge.tall.IndexEdgeDeserializable(RocksDBHelper.bytesToLong)
   )
 
   val emptyBytes = Array.empty[Byte]
