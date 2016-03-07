@@ -8,6 +8,7 @@ import com.kakao.s2graph.core.mysqls._
 import com.kakao.s2graph.core.parsers.WhereParser
 import com.kakao.s2graph.core.storage.Storage
 import com.kakao.s2graph.core.storage.hbase._
+import com.kakao.s2graph.core.storage.rocks.RocksDBStorage
 import com.kakao.s2graph.core.types._
 import com.kakao.s2graph.core.utils.logger
 import com.typesafe.config.{Config, ConfigFactory}
@@ -346,7 +347,8 @@ class Graph(_config: Config)(implicit val ec: ExecutionContext) {
   Model.loadCache()
 
   // TODO: Make storage client by config param
-  val storage = Graph.initStorage(config)(ec)
+  val storage = new RocksDBStorage(config)(ec)
+//    Graph.initStorage(config)(ec)
 
 
   for {

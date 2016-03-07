@@ -31,3 +31,5 @@ libraryDependencies := {
       libraryDependencies.value
   }
 }
+
+parallelExecution in Test := false
