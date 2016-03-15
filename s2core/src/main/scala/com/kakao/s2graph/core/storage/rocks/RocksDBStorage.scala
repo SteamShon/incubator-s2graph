@@ -57,14 +57,38 @@ object RocksDBHelper {
  * @param ec
  */
 class RocksDBStorage(override val config: Config)(implicit ec: ExecutionContext)
-  extends Storage[QueryRequestWithResult](config) {
+  extends Storage[Future[QueryRequestWithResult]](config) {
 
   implicit val timeout = Timeout(5, TimeUnit.SECONDS)
+
+  RocksDB.loadLibrary()
+
+  private val options = new Options()
+    .setCreateIfMissing(true)
+    .setWriteBufferSize(1024 * 1024 * 512)
+    .setMergeOperatorName("uint64add")
+    .createStatistics()
+    .setDbLogDir("./")
+    .setTableCacheNumshardbits(5)
+    .setIncreaseParallelism(8)
+    .setAllowOsBuffer(true)
+    .setAllowMmapReads(true)
+    .setArenaBlockSize(1024 * 32)
+
+  val db: RocksDB = try {
+    // a factory method that returns a RocksDB instance
+    // only for testing now.
+    RocksDB.open(options, "/tmp/rocks")
+  } catch {
+    case e: RocksDBException =>
+      logger.error(s"initialize rocks db storage failed.", e)
+      throw e
+  }
 
   val system = ActorSystem("RocksDBStorage", config)
   val poolSize = 2
   val actors: Seq[ActorRef] = (0 until poolSize).map { ith =>
-    system.actorOf(Props(new RocksDBActor(ith)))
+    system.actorOf(Props(new RocksDBActor(db)))
   }
   /** we use tall schema for both snapshot edge and indexedge in RocksDBStorage. */
   override def snapshotEdgeSerializer(snapshotEdge: SnapshotEdge) =
@@ -166,7 +190,22 @@ class RocksDBStorage(override val config: Config)(implicit ec: ExecutionContext)
   override def fetch(queryRequest: QueryRequest,
                      prevStepScore: Double,
                      isInnerCall: Boolean,
-                     parentEdges: Seq[EdgeWithScore]): QueryRequestWithResult = throw new RuntimeException("not necessary")
+                     parentEdges: Seq[EdgeWithScore]): Future[QueryRequestWithResult] = {
+    val request = buildRequest(queryRequest)
+    val (queryParam, (startKey, stopKey)) = request
+    withShard[Seq[SKeyValue]](startKey.take(2), ScanRequest(startKey, stopKey, queryParam.limit)).map { kvs =>
+      val edgeWithScores = toEdges(kvs, queryParam, prevStepScore, false, parentEdges).filter { case edgeWithScore =>
+        val edge = edgeWithScore.edge
+        val duration = queryParam.duration.getOrElse((Long.MinValue, Long.MaxValue))
+        edge.ts >= duration._1 && edge.ts < duration._2
+      }
+      val resultEdgesWithScores =
+        if (queryRequest.queryParam.sample >= 0) sample(queryRequest, edgeWithScores, queryRequest.queryParam.sample)
+        else edgeWithScores
+
+      QueryRequestWithResult(queryRequest, QueryResult(resultEdgesWithScores, tailCursor = kvs.lastOption.map(_.row).getOrElse(Array.empty)))
+    }
+  }
 
 
   override def fetches(queryRequestWithScoreLs: Seq[(QueryRequest, Double)],
@@ -174,22 +213,7 @@ class RocksDBStorage(override val config: Config)(implicit ec: ExecutionContext)
     val futures = for {
       (queryRequest, prevStepScore) <- queryRequestWithScoreLs
       parentEdges <- prevStepEdges.get(queryRequest.vertex.id)
-    } yield {
-        val request = buildRequest(queryRequest)
-        val (queryParam, (startKey, stopKey)) = request
-        withShard[Seq[SKeyValue]](startKey.take(2), ScanRequest(startKey, stopKey, queryParam.limit)).map { kvs =>
-          val edgeWithScores = toEdges(kvs, queryParam, prevStepScore, false, parentEdges).filter { case edgeWithScore =>
-            val edge = edgeWithScore.edge
-            val duration = queryParam.duration.getOrElse((Long.MinValue, Long.MaxValue))
-            edge.ts >= duration._1 && edge.ts < duration._2
-          }
-          val resultEdgesWithScores =
-            if (queryRequest.queryParam.sample >= 0) sample(queryRequest, edgeWithScores, queryRequest.queryParam.sample)
-            else edgeWithScores
-
-          QueryRequestWithResult(queryRequest, QueryResult(resultEdgesWithScores, tailCursor = kvs.lastOption.map(_.row).getOrElse(Array.empty)))
-        }
-      }
+    } yield fetch(queryRequest, prevStepScore, isInnerCall = false, parentEdges)
     Future.sequence(futures)
     //    Future.successful(futures)
   }
@@ -216,48 +240,16 @@ class RocksDBStorage(override val config: Config)(implicit ec: ExecutionContext)
   override def fetchVertexKeyValues(request: AnyRef): Future[scala.Seq[SKeyValue]] = fetchSnapshotEdgeKeyValues(request)
 }
 
-class RocksDBActor(idx: Int) extends Actor {
+case class RocksDBActor(db: RocksDB) extends Actor {
 
   private val emptyBytes = Array.empty[Byte]
   private val table = Array.empty[Byte]
   private val qualifier = Array.empty[Byte]
 
-  RocksDB.loadLibrary()
-
-  //  val env = new RocksEnv()
-
   private val memEnv = new RocksMemEnv()
   private val writeOptions = new WriteOptions()
   private val readOptions = new ReadOptions().setFillCache(true).setVerifyChecksums(false)
-
-  private val options = new Options()
-    .setCreateIfMissing(true)
-    .setWriteBufferSize(1024 * 1024 * 512)
-    .setMergeOperatorName("uint64add")
-    .createStatistics()
-    .setDbLogDir("./")
-    .setTableCacheNumshardbits(5)
-    .setIncreaseParallelism(8)
-    .setAllowOsBuffer(true)
-    .setAllowMmapReads(true)
-    .setArenaBlockSize(1024 * 32)
-
-
   //    .setOptimizeFiltersForHits(true)
-
-
-  private var db: RocksDB = null
-
-
-  try {
-    // a factory method that returns a RocksDB instance
-    // only for testing now.
-
-    db = RocksDB.open(options, s"/tmp/rocks_$idx")
-  } catch {
-    case e: RocksDBException =>
-      logger.error(s"initialize rocks db storage failed.", e)
-  }
 
   private val cacheLoader = new CacheLoader[String, ReentrantLock] {
     override def load(key: String) = new ReentrantLock()
