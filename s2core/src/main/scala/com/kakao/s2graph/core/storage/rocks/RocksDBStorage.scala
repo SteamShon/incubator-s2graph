@@ -45,12 +45,31 @@ object RocksDBHelper {
     } else 0L
   }
 
+
   trait Request
   case class ScanRequest(startKey: Array[Byte], stopKey: Array[Byte], limit: Int) extends Request
   case class GetRequest(startKey: Array[Byte]) extends Request
   case class WriteLockRequest(kv: SKeyValue, expectedOpt: Option[SKeyValue]) extends Request
   case class WriteRequest(cluster: String, kvs: Seq[SKeyValue]) extends Request
 }
+
+/**
+ * Cluster, RegionServer, Table, Region
+ *
+ * Cluster
+ *  RegionServer
+ *    Table
+ *      Region
+ *
+ *
+ * given (table, key), need following functions.
+ *
+ * find out sequence of (region server, table, region in case replicated) which this key belongs to for read.
+ *  - replication would be just (master, slave) or 3 copies.
+
+ */
+
+
 /**
  * currently RocksDBStorage only support schema_v4.
  * @param config
