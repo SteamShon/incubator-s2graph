@@ -1,15 +1,24 @@
 package org.apache.s2graph.core.tinkerpop.structure
 
-import org.apache.tinkerpop.gremlin.structure.{Element, Property}
+import org.apache.tinkerpop.gremlin.structure.util.{ElementHelper, StringFactory}
+import org.apache.tinkerpop.gremlin.structure.{Edge, Element, Property}
 
-class S2Property[V] extends Property {
-  override def isPresent: Boolean = ???
+class S2Property[V](val element: Element,
+                    val key: String,
+                    val value: V) extends Property[V] {
 
-  override def key(): String = ???
+  override def isPresent: Boolean = null != this.value
 
-  override def value(): V = ???
+  override def remove(): Unit =
+    element match {
+      case edge: Edge => edge.properties().remove(key)
+      case _ => throw new RuntimeException("not supported vertex yet.")
+//        element.asInstanceOf[S2VertexProperty]
+    }
+  override def toString(): String = StringFactory.propertyString(this)
 
-  override def remove(): Unit = ???
+  override def equals(other: Any): Boolean = ElementHelper.areEqual(this, other)
 
-  override def element(): Element = ???
+  override def hashCode(): Int = ElementHelper.hashCode(this)
+
 }

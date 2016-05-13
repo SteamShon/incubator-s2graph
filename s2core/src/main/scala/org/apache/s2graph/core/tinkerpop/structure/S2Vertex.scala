@@ -5,7 +5,11 @@ import java.util
 import org.apache.tinkerpop.gremlin.structure.VertexProperty.Cardinality
 import org.apache.tinkerpop.gremlin.structure._
 
-class S2Vertex extends Vertex {
+class S2Vertex(val graph: S2Graph,
+               val id: AnyRef,
+               val serviceName: String,
+               val columnName: String,
+               val label: String) extends Vertex {
   override def vertices(direction: Direction, strings: String*): util.Iterator[Vertex] = ???
 
   override def edges(direction: Direction, strings: String*): util.Iterator[Edge] = ???
@@ -18,9 +22,4 @@ class S2Vertex extends Vertex {
 
   override def remove(): Unit = ???
 
-  override def graph(): Graph = ???
-
-  override def label(): String = ???
-
-  override def id(): AnyRef = ???
 }
