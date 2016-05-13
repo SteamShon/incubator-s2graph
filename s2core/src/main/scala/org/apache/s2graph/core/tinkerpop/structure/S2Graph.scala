@@ -1,20 +1,19 @@
 package org.apache.s2graph.core.tinkerpop.structure
 
 import java.util
-import java.util.concurrent.{TimeUnit, Executors}
+import java.util.concurrent.{Executors, TimeUnit}
 
-import com.typesafe.config.{ConfigFactory, Config}
+import com.typesafe.config.{Config, ConfigFactory}
 import org.apache.commons.configuration.{BaseConfiguration, Configuration}
 import org.apache.s2graph.core
-import org.apache.s2graph.core.{Management, GraphUtil}
+import org.apache.s2graph.core.Management
 import org.apache.s2graph.core.tinkerpop.process.S2GraphStepStrategy
 import org.apache.tinkerpop.gremlin.process.computer.GraphComputer
 import org.apache.tinkerpop.gremlin.process.traversal.TraversalStrategies
 import org.apache.tinkerpop.gremlin.structure.Graph.{Exceptions, Features, Variables}
 import org.apache.tinkerpop.gremlin.structure.VertexProperty.Cardinality
-import org.apache.tinkerpop.gremlin.structure.util.ElementHelper
 import org.apache.tinkerpop.gremlin.structure.{Edge, Graph, Transaction, Vertex}
-import play.api.libs.json.{Json, JsValue, JsNumber, JsString}
+import play.api.libs.json.{JsNumber, JsString, JsValue, Json}
 
 import scala.concurrent.duration.Duration
 import scala.concurrent.{Await, ExecutionContext}
@@ -56,49 +55,57 @@ class S2Graph(val configuration: Configuration) extends Graph(configuration) {
 
   val client = new core.Graph(convertConfig)(ec)
 
-  override def vertices(objects: AnyRef*): util.Iterator[Vertex] = ???
+  /** this looks problematic when underlying graph is large */
+  override def vertices(objects: AnyRef*): util.Iterator[Vertex] = Nil.iterator
 
   override def tx(): Transaction = throw Exceptions.transactionsNotSupported()
 
-  override def edges(objects: AnyRef*): util.Iterator[Edge] = ???
+  override def edges(edgeIds: AnyRef*): util.Iterator[Edge] = ???
 
   override def variables(): Variables = ???
 
-  /** TODO: consider reasonable fallback */
-  override def addVertex(objects: AnyRef*): Vertex = {
-    var ts = System.currentTimeMillis()
-    var op = "insert"
-    var idOpt: Option[String] = None
-    var serviceNameOpt: Option[String] = None
-    var columnNameOpt: Option[String] = None
 
+  def toPropsJson(objects: AnyRef*): Map[String, JsValue] = {
     val props = for {
       kv <- objects.grouped(2)
       (k, v) = (kv.head, kv.last)
     } yield {
-        k match {
-          case "timestamp" => ts = v.toString.toLong
-          case "op" => op = v.toString
-          case "id" => idOpt = Option(v.toString)
-          case "serviceName" => serviceNameOpt = Option(v.toString)
-          case "columnName" => columnNameOpt = Option(v.toString)
+        val jsValue: JsValue  = k match {
+          case "timestamp" => JsNumber(v.toString.toLong)
+          case "op" => JsString(v.toString)
+          case "id" => JsString(v.toString)
+          case "serviceName" => JsString(v.toString)
+          case "columnName" => JsString(v.toString)
           case _ =>
-        }
-        val jsValue: JsValue = v match {
-          case s: String => JsString(s)
-          case n: Int | Long | Float | Double => JsNumber(n)
-          case _ => throw new RuntimeException(s"not supported value type. $v")
+            v match {
+              case s: String => JsString(s)
+              case n: Int | Long | Float | Double => JsNumber(n)
+              case _ => throw new RuntimeException(s"unsupported value type. $v")
+            }
         }
         k.toString -> jsValue
       }
 
+    props.toMap
+  }
+
+  def toStr(jsValue: JsValue): String = jsValue match {
+    case s: JsString => s.value
+    case _ => jsValue.toString
+  }
+
+  /** TODO: consider reasonable fallback */
+  override def addVertex(objects: AnyRef*): Vertex = {
+    val props = toPropsJson(objects)
 
     val vertexOpt = for {
-      id <- idOpt
-      serviceName <- serviceNameOpt
-      columnName <- columnNameOpt
+      id <- props.get("id").map(toStr(_))
+      serviceName <- props.get("serviceName").map(toStr(_))
+      columnName <- props.get("columnName").map(toStr(_))
     } yield {
-      val propsStr = Json.toJson(props.toMap).toString
+      val ts = props.get("timestamp").map(v => v.toString().toLong).getOrElse(System.currentTimeMillis())
+      val op = toStr(props.getOrElse("operation", JsString("insert")))
+      val propsStr = Json.toJson(props).toString
       Management.toVertex(ts, op, id, serviceName, columnName, propsStr)
     }
     val vertex = vertexOpt.getOrElse(throw new RuntimeException("not all necessary data is provided."))
@@ -118,10 +125,11 @@ class S2Graph(val configuration: Configuration) extends Graph(configuration) {
   val DefaultVertexLabel = ""
 
   def toS2Vertex(vertex: core.Vertex): S2Vertex = {
-    val vId = vertex.innerId.toIdString()
-    val serviceName = vertex.service.serviceName
-    val columnName = vertex.serviceColumn.columnName
-    new S2Vertex(this, vId, serviceName, columnName, DefaultVertexLabel)
+    new S2Vertex(this, vertex, DefaultVertexLabel)
+  }
+
+  def toS2Edge(edge: core.Edge): S2Edge = {
+    new S2Edge(this, edge)
   }
 
 

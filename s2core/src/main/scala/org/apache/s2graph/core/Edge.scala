@@ -151,6 +151,10 @@ case class Edge(srcVertex: Vertex,
   val schemaVer = label.schemaVersion
   val ts = propsWithTs(LabelMeta.timeStampSeq).innerVal.toString.toLong
 
+  /** TODO: this is only for TinkerPop integration. */
+  def id = (srcVertex, tgtVertex, labelWithDir)
+
+
   def props = propsWithTs.mapValues(_.innerVal)
 
   def relatedEdges = {
