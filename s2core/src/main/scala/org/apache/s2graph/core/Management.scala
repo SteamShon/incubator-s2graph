@@ -25,11 +25,8 @@ import org.apache.s2graph.core.Management.JsonModel.{Index, Prop}
 import org.apache.s2graph.core.mysqls._
 import org.apache.s2graph.core.types.HBaseType._
 import org.apache.s2graph.core.types._
-import org.apache.s2graph.core.utils.logger
-import org.apache.tinkerpop.gremlin.structure.util.ElementHelper
 import play.api.libs.json.Reads._
 import play.api.libs.json._
-import scala.collection.JavaConversions._
 import scala.collection.mutable
 import scala.util.Try
 
@@ -207,10 +204,10 @@ object Management extends JSONParser {
               (e, i) <- inner.zipWithIndex
             } {
               e match {
-                case t: (Any, Any) =>
+                case t: (Any, Any) => // expect ElementHelper.asMap
                   ret.put(t._1.toString, t._2)
                   i += 1
-                case t: Any =>
+                case t: Any => // other
                   if (i % 2 == 0) keys += t.toString
                   else vals += t
                   i += 1
