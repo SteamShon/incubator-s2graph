@@ -206,7 +206,7 @@ class AsynchbaseStorage(override val config: Config)(implicit ec: ExecutionConte
         val indexEdgeOpt = edge.edgesWithIndex.filter(edgeWithIndex => edgeWithIndex.labelIndex.seq == queryParam.labelOrderSeq).headOption
         val indexEdge = indexEdgeOpt.getOrElse(throw new RuntimeException(s"Can`t find index for query $queryParam"))
 
-        val srcIdBytes = VertexId.toSourceVertexId(indexEdge.srcVertex.id).bytes
+        val srcIdBytes = VertexId.toSourceVertexId(indexEdge.srcVertex.vertexId).bytes
         val labelWithDirBytes = indexEdge.labelWithDir.bytes
         val labelIndexSeqWithIsInvertedBytes = StorageSerializable.labelOrderSeqWithIsInverted(indexEdge.labelIndexSeq, isInverted = false)
         //        val labelIndexSeqWithIsInvertedStopBytes =  StorageSerializable.labelOrderSeqWithIsInverted(indexEdge.labelIndexSeq, isInverted = true)
@@ -313,7 +313,7 @@ class AsynchbaseStorage(override val config: Config)(implicit ec: ExecutionConte
                        prevStepEdges: Predef.Map[VertexId, scala.Seq[EdgeWithScore]]): Future[scala.Seq[QueryRequestWithResult]] = {
     val defers: Seq[Deferred[QueryRequestWithResult]] = for {
       (queryRequest, prevStepScore) <- queryRequestWithScoreLs
-      parentEdges <- prevStepEdges.get(queryRequest.vertex.id)
+      parentEdges <- prevStepEdges.get(queryRequest.vertex.vertexId)
     } yield fetch(queryRequest, prevStepScore, isInnerCall = false, parentEdges)
 
     val grouped: Deferred[util.ArrayList[QueryRequestWithResult]] = Deferred.group(defers)

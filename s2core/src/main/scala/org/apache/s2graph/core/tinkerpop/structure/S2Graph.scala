@@ -2,14 +2,15 @@ package org.apache.s2graph.core.tinkerpop.structure
 
 
 import org.apache.s2graph.core
-import org.apache.s2graph.core.Management
-import org.apache.s2graph.core.tinkerpop.process.S2GraphStepStrategy
+import org.apache.s2graph.core.{GraphUtil, Management}
+import play.api.libs.json.{Json, JsString}
+
+//import org.apache.s2graph.core.tinkerpop.process.S2GraphStepStrategy
 import org.apache.tinkerpop.gremlin.process.computer.GraphComputer
-import org.apache.tinkerpop.gremlin.process.traversal.TraversalStrategies
+//import org.apache.tinkerpop.gremlin.process.traversal.TraversalStrategies
 import org.apache.tinkerpop.gremlin.structure.Graph.{Exceptions, Features, Variables}
 import org.apache.tinkerpop.gremlin.structure.VertexProperty.Cardinality
 import org.apache.tinkerpop.gremlin.structure.{Edge, Graph, Transaction, Vertex}
-import play.api.libs.json.{JsNumber, JsString, JsValue, Json}
 import scala.concurrent.duration.Duration
 import scala.concurrent.{Await, ExecutionContext}
 import scala.collection.JavaConversions._
@@ -21,13 +22,14 @@ import org.apache.commons.configuration.{BaseConfiguration, Configuration}
 
 object S2Graph {
 
-  TraversalStrategies.GlobalCache.registerStrategies(classOf[S2Graph],
-    TraversalStrategies.GlobalCache.getStrategies(classOf[Graph]).clone().addStrategies(S2GraphStepStrategy.instance()))
-
-
-  val EMPTY_CONFIGURATION = new BaseConfiguration() {
-    setProperty(Graph.GRAPH, classOf[S2Graph].getClass.getName())
-  }
+//  TraversalStrategies.GlobalCache.registerStrategies(classOf[S2Graph],
+//    TraversalStrategies.GlobalCache.getStrategies(classOf[Graph]).clone().addStrategies(S2GraphStepStrategy.instance()))
+//
+//
+//  val EMPTY_CONFIGURATION = new BaseConfiguration() {
+//    setProperty(Graph.GRAPH, classOf[S2Graph].getClass.getName())
+//  }
+  val DefaultVertexLabel = ""
 
   def open(configuration: Configuration): S2Graph = {
     new S2Graph(configuration)
@@ -35,34 +37,45 @@ object S2Graph {
 
   def toConfig(configuration: Configuration): Config = {
     val config = ConfigFactory.load()
+    val javaProps = new util.HashMap[String, AnyRef]()
+
     val props = for {
       key <- configuration.getKeys
     } yield {
-        key -> configuration.getProperty(key)
+        javaProps.put(key, configuration.getProperty(key))
       }
-    config.withFallback(ConfigFactory.parseMap(props.toMap))
+//    val javaProps: java.util.Map[String, Any] = props.toMap
+    config.withFallback(ConfigFactory.parseMap(javaProps))
   }
 
   def fromConfig(config: Config): Configuration = {
     val configuration = new BaseConfiguration()
     for {
-      (k, v) <- config.entrySet()
+      entry <- config.entrySet()
     } {
-      configuration.setProperty(k, v)
+      configuration.setProperty(entry.getKey, entry.getValue.unwrapped())
     }
     configuration
   }
   
-  def toS2Graph(graph: core.Graph): S2Graph = new S2Graph(fromConfig(graph.config))
+  def toS2Graph(graph: core.Graph): S2Graph =
+    new S2Graph(fromConfig(graph.config))
 
+  def toS2Vertex(s2Graph: S2Graph, vertex: core.Vertex): S2Vertex = {
+    new S2Vertex(s2Graph, vertex, DefaultVertexLabel)
+  }
+
+  def toS2Edge(s2Graph: S2Graph, edge: core.Edge, label: String): S2Edge = {
+    new S2Edge(s2Graph, edge, label)
+  }
 }
-class S2Graph(val configuration: Configuration) extends Graph(configuration) {
+class S2Graph(val configuration: Configuration) extends Graph {
 
-
+  import S2Graph._
   val _features = new S2GraphFeatures()
   val numOfThread = Runtime.getRuntime.availableProcessors()
   val threadPool = Executors.newFixedThreadPool(numOfThread)
-  val ec = ExecutionContext.fromExecutor(threadPool)
+  implicit val ec = ExecutionContext.fromExecutor(threadPool)
 
   val WriteRPCTimeOut = 1000
 
@@ -80,47 +93,23 @@ class S2Graph(val configuration: Configuration) extends Graph(configuration) {
 
   override def variables(): Variables = ???
 
+  def toS2Vertex(vertex: core.Vertex): S2Vertex =
+    new S2Vertex(this, vertex, DefaultVertexLabel)
 
-  def toPropsJson(objects: AnyRef*): Map[String, JsValue] = {
-    val props = for {
-      kv <- objects.grouped(2)
-      (k, v) = (kv.head, kv.last)
-    } yield {
-        val jsValue: JsValue  = k match {
-          case "timestamp" => JsNumber(v.toString.toLong)
-          case "op" => JsString(v.toString)
-          case "id" => JsString(v.toString)
-          case "serviceName" => JsString(v.toString)
-          case "columnName" => JsString(v.toString)
-          case _ =>
-            v match {
-              case s: String => JsString(s)
-              case n: Int | Long | Float | Double => JsNumber(n)
-              case _ => throw new RuntimeException(s"unsupported value type. $v")
-            }
-        }
-        k.toString -> jsValue
-      }
-
-    props.toMap
-  }
-
-  def toStr(jsValue: JsValue): String = jsValue match {
-    case s: JsString => s.value
-    case _ => jsValue.toString
-  }
+  def toS2Edge(edge: core.Edge, label: String): S2Edge =
+    new S2Edge(this, edge, label)
 
   /** TODO: consider reasonable fallback */
   override def addVertex(objects: AnyRef*): Vertex = {
-    val props = toPropsJson(objects)
-
+    val props = Management.toPropsJson(objects)
+    import GraphUtil._
     val vertexOpt = for {
-      id <- props.get("id").map(toStr(_))
-      serviceName <- props.get("serviceName").map(toStr(_))
-      columnName <- props.get("columnName").map(toStr(_))
+      id <- props.get("id").map(jsValueToStr(_))
+      serviceName <- props.get("serviceName").map(jsValueToStr(_))
+      columnName <- props.get("columnName").map(jsValueToStr(_))
     } yield {
-      val ts = props.get("timestamp").map(v => v.toString().toLong).getOrElse(System.currentTimeMillis())
-      val op = toStr(props.getOrElse("operation", JsString("insert")))
+      val ts = props.get("timestamp").map(v => v.toString.toLong).getOrElse(System.currentTimeMillis())
+      val op = jsValueToStr(props.getOrElse("operation", JsString("insert")))
       val propsStr = Json.toJson(props).toString
       Management.toVertex(ts, op, id, serviceName, columnName, propsStr)
     }
@@ -138,15 +127,9 @@ class S2Graph(val configuration: Configuration) extends Graph(configuration) {
 
   override def compute(): GraphComputer = ???
 
-  val DefaultVertexLabel = ""
 
-  def toS2Vertex(vertex: core.Vertex): S2Vertex = {
-    new S2Vertex(this, vertex, DefaultVertexLabel)
-  }
 
-  def toS2Edge(edge: core.Edge): S2Edge = {
-    new S2Edge(this, edge)
-  }
+
 
 
   class S2GraphGraphFeature extends Features.GraphFeatures {

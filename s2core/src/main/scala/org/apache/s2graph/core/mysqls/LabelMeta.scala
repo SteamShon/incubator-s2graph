@@ -46,9 +46,9 @@ object LabelMeta extends Model[LabelMeta] with JSONParser {
   //  val deleted = LabelMeta(id = Some(lastDeletedAt), labelId = lastDeletedAt, name = "lastDeletedAt",
   //    seq = lastDeletedAt, defaultValue = "", dataType = "long")
   val from = LabelMeta(id = Some(fromSeq), labelId = fromSeq, name = "_from",
-    seq = fromSeq, defaultValue = fromSeq.toString, dataType = "long")
+    seq = fromSeq, defaultValue = fromSeq.toString, dataType = "string")
   val to = LabelMeta(id = Some(toSeq), labelId = toSeq, name = "_to",
-    seq = toSeq, defaultValue = toSeq.toString, dataType = "long")
+    seq = toSeq, defaultValue = toSeq.toString, dataType = "string")
   val timestamp = LabelMeta(id = Some(-1), labelId = -1, name = "_timestamp",
     seq = timeStampSeq, defaultValue = "0", dataType = "long")
   val degree = LabelMeta(id = Some(-1), labelId = -1, name = "_degree",

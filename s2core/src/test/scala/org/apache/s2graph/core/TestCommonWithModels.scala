@@ -36,7 +36,7 @@ trait TestCommonWithModels {
   var config: Config = _
   var management: Management = _
 
-  def initTests() = {
+  def initTests(): Unit = {
     config = ConfigFactory.load()
     graph = new Graph(config)(ExecutionContext.Implicits.global)
     management = new Management(graph)

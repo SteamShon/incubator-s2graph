@@ -254,7 +254,7 @@ object PostProcess extends JSONParser {
 
       // edge to json
       val (srcColumn, _) = queryParam.label.srcTgtColumn(edge.labelWithDir.dir)
-      val fromOpt = innerValToJsValue(edge.srcVertex.id.innerId, srcColumn.columnType)
+      val fromOpt = innerValToJsValue(edge.srcVertex.vertexId.innerId, srcColumn.columnType)
       if (edge.isDegree && fromOpt.isDefined) {
         if (queryOption.limitOpt.isEmpty) {
           degrees += Json.obj(
@@ -453,8 +453,8 @@ object PostProcess extends JSONParser {
     val (srcColumn, tgtColumn) = queryParam.label.srcTgtColumn(edge.labelWithDir.dir)
 
     val kvMapOpt = for {
-      from <- innerValToJsValue(edge.srcVertex.id.innerId, srcColumn.columnType)
-      to <- innerValToJsValue(edge.tgtVertex.id.innerId, tgtColumn.columnType)
+      from <- innerValToJsValue(edge.srcVertex.vertexId.innerId, srcColumn.columnType)
+      to <- innerValToJsValue(edge.tgtVertex.vertexId.innerId, tgtColumn.columnType)
     } yield {
       val targetColumns = if (q.selectColumnsSet.isEmpty) reservedColumns else (reservedColumns & q.selectColumnsSet) + "props"
       val _propsMap = queryParam.label.metaPropsDefaultMapInner ++ propsToJson(edge, q, queryParam)
@@ -488,7 +488,7 @@ object PostProcess extends JSONParser {
   }
 
   def vertexToJson(vertex: Vertex): Option[JsObject] = {
-    val serviceColumn = ServiceColumn.findById(vertex.id.colId)
+    val serviceColumn = ServiceColumn.findById(vertex.vertexId.colId)
 
     for {
       id <- innerValToJsValue(vertex.innerId, serviceColumn.columnType)

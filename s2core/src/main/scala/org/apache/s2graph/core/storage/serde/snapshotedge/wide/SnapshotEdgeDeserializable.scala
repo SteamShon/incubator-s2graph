@@ -46,7 +46,7 @@ class SnapshotEdgeDeserializable extends Deserializable[SnapshotEdge] {
     val cellVersion = kv.timestamp
 
     val (srcVertexId, labelWithDir, _, _, _) = cacheElementOpt.map { e =>
-      (e.srcVertex.id, e.labelWithDir, LabelIndex.DefaultSeq, true, 0)
+      (e.srcVertex.vertexId, e.labelWithDir, LabelIndex.DefaultSeq, true, 0)
     }.getOrElse(parseRow(kv, schemaVer))
 
     val (tgtVertexId, props, op, ts, statusCode, _pendingEdgeOpt) = {

@@ -82,7 +82,7 @@ class IndexEdgeDeserializable(bytesToLongFunc: (Array[Byte], Int) => Long = byte
 
      val kv = kvs.head
      val (srcVertexId, labelWithDir, labelIdxSeq, _, _) = cacheElementOpt.map { e =>
-       (e.srcVertex.id, e.labelWithDir, e.labelIndexSeq, false, 0)
+       (e.srcVertex.vertexId, e.labelWithDir, e.labelIndexSeq, false, 0)
      }.getOrElse(parseRow(kv, version))
 
      val (idxPropsRaw, tgtVertexIdRaw, op, tgtVertexIdInQualifier, _) =

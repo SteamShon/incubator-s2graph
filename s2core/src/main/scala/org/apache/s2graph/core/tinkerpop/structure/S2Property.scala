@@ -11,7 +11,7 @@ class S2Property[V](val element: Element,
 
   override def remove(): Unit =
     element match {
-      case edge: Edge => edge.properties().remove(key)
+//      case edge: Edge =>
       case _ => throw new RuntimeException("not supported vertex yet.")
 //        element.asInstanceOf[S2VertexProperty]
     }

@@ -7,11 +7,12 @@ import org.apache.tinkerpop.gremlin.structure._
 import org.apache.tinkerpop.gremlin.structure.util.StringFactory
 import org.apache.tinkerpop.gremlin.util.iterator.IteratorUtils
 
-class S2Edge(val s2Graph: S2Graph, val coreEdge: core.Edge)
-  extends Edge(coreEdge.id,
-    s2Graph.toS2Vertex(coreEdge.srcVertex),
-    coreEdge.label.label,
-    s2Graph.toS2Vertex(coreEdge.tgtVertex)) {
+class S2Edge(val s2Graph: S2Graph,
+             val coreEdge: core.Edge,
+             val label: String) extends Edge {
+
+  override val outVertex = s2Graph.toS2Vertex(coreEdge.srcVertex)
+  override val inVertex = s2Graph.toS2Vertex(coreEdge.tgtVertex)
 
   override def vertices(direction: Direction): util.Iterator[Vertex] = {
     direction match {
@@ -27,11 +28,11 @@ class S2Edge(val s2Graph: S2Graph, val coreEdge: core.Edge)
 
   override def remove(): Unit = ???
 
-  override def graph(): Graph = inVertex.graph()
+  override def graph(): Graph = s2Graph
 
   override def toString(): String = StringFactory.edgeString(this)
 
-  override def label(): String = super.label()
-
-  override def id(): AnyRef = super.id()
+  override def id(): AnyRef = {
+    coreEdge.id
+  }
 }

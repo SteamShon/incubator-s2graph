@@ -144,7 +144,7 @@ trait JSONParser {
       }
     } catch {
       case e: Exception =>
-        logger.error(e.getMessage)
+        logger.error(s"[jsValueToInnerVal]: $jsValue, $dataType, $version", e)
         None
     }
 

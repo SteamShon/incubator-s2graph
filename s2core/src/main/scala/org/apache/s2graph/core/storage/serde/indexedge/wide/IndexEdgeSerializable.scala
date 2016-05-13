@@ -36,13 +36,13 @@ class IndexEdgeSerializable(indexEdge: IndexEdge) extends Serializable[IndexEdge
    val idxPropsBytes = propsToBytes(indexEdge.orders)
 
    override def toKeyValues: Seq[SKeyValue] = {
-     val srcIdBytes = VertexId.toSourceVertexId(indexEdge.srcVertex.id).bytes
+     val srcIdBytes = VertexId.toSourceVertexId(indexEdge.srcVertex.vertexId).bytes
      val labelWithDirBytes = indexEdge.labelWithDir.bytes
      val labelIndexSeqWithIsInvertedBytes = labelOrderSeqWithIsInverted(indexEdge.labelIndexSeq, isInverted = false)
 
      val row = Bytes.add(srcIdBytes, labelWithDirBytes, labelIndexSeqWithIsInvertedBytes)
      //    logger.error(s"${row.toList}\n${srcIdBytes.toList}\n${labelWithDirBytes.toList}\n${labelIndexSeqWithIsInvertedBytes.toList}")
-     val tgtIdBytes = VertexId.toTargetVertexId(indexEdge.tgtVertex.id).bytes
+     val tgtIdBytes = VertexId.toTargetVertexId(indexEdge.tgtVertex.vertexId).bytes
      val qualifier =
        if (indexEdge.degreeEdge) Array.empty[Byte]
        else {
