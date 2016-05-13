@@ -1,10 +1,6 @@
 package org.apache.s2graph.core.tinkerpop.structure
 
-import java.util
-import java.util.concurrent.{Executors, TimeUnit}
 
-import com.typesafe.config.{Config, ConfigFactory}
-import org.apache.commons.configuration.{BaseConfiguration, Configuration}
 import org.apache.s2graph.core
 import org.apache.s2graph.core.Management
 import org.apache.s2graph.core.tinkerpop.process.S2GraphStepStrategy
@@ -14,9 +10,14 @@ import org.apache.tinkerpop.gremlin.structure.Graph.{Exceptions, Features, Varia
 import org.apache.tinkerpop.gremlin.structure.VertexProperty.Cardinality
 import org.apache.tinkerpop.gremlin.structure.{Edge, Graph, Transaction, Vertex}
 import play.api.libs.json.{JsNumber, JsString, JsValue, Json}
-
 import scala.concurrent.duration.Duration
 import scala.concurrent.{Await, ExecutionContext}
+import scala.collection.JavaConversions._
+import java.util
+import java.util.concurrent.{Executors, TimeUnit}
+import com.typesafe.config.{Config, ConfigFactory}
+import org.apache.commons.configuration.{BaseConfiguration, Configuration}
+
 
 object S2Graph {
 
@@ -27,40 +28,55 @@ object S2Graph {
   val EMPTY_CONFIGURATION = new BaseConfiguration() {
     setProperty(Graph.GRAPH, classOf[S2Graph].getClass.getName())
   }
-//  private static final Configuration EMPTY_CONFIGURATION = new BaseConfiguration() {{
-//    this.setProperty(Graph.GRAPH, TinkerGraph.class.getName());
-//  }};
+
   def open(configuration: Configuration): S2Graph = {
     new S2Graph(configuration)
   }
+
+  def toConfig(configuration: Configuration): Config = {
+    val config = ConfigFactory.load()
+    val props = for {
+      key <- configuration.getKeys
+    } yield {
+        key -> configuration.getProperty(key)
+      }
+    config.withFallback(ConfigFactory.parseMap(props.toMap))
+  }
+
+  def fromConfig(config: Config): Configuration = {
+    val configuration = new BaseConfiguration()
+    for {
+      (k, v) <- config.entrySet()
+    } {
+      configuration.setProperty(k, v)
+    }
+    configuration
+  }
+  
+  def toS2Graph(graph: core.Graph): S2Graph = new S2Graph(fromConfig(graph.config))
+
 }
 class S2Graph(val configuration: Configuration) extends Graph(configuration) {
 
-  import scala.collection.JavaConversions._
+
   val _features = new S2GraphFeatures()
   val numOfThread = Runtime.getRuntime.availableProcessors()
   val threadPool = Executors.newFixedThreadPool(numOfThread)
   val ec = ExecutionContext.fromExecutor(threadPool)
 
   val WriteRPCTimeOut = 1000
-  def convertConfig: Config = {
-    val config = ConfigFactory.load()
-    val props = for {
-      key <- configuration.getKeys
-    } yield {
-      key -> configuration.getProperty(key)
-    }
-    config.withFallback(ConfigFactory.parseMap(props.toMap))
-  }
 
-  val client = new core.Graph(convertConfig)(ec)
+
+
+  val client = new core.Graph(S2Graph.toConfig(configuration))(ec)
 
   /** this looks problematic when underlying graph is large */
   override def vertices(objects: AnyRef*): util.Iterator[Vertex] = Nil.iterator
 
-  override def tx(): Transaction = throw Exceptions.transactionsNotSupported()
+  /** this looks problematic when underlying graph is large */
+  override def edges(edgeIds: AnyRef*): util.Iterator[Edge] = Nil.iterator
 
-  override def edges(edgeIds: AnyRef*): util.Iterator[Edge] = ???
+  override def tx(): Transaction = throw Exceptions.transactionsNotSupported()
 
   override def variables(): Variables = ???
 

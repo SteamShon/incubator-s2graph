@@ -15,7 +15,7 @@ import scala.concurrent.duration.Duration
 class S2Vertex(val graph: S2Graph,
                val vertex: core.Vertex,
                val label: String) extends Vertex {
-  val WriteRPCTimeOut = 1000
+
   override def vertices(direction: Direction, strings: String*): util.Iterator[Vertex] = ???
 
   override def edges(direction: Direction, strings: String*): util.Iterator[Edge] = ???
@@ -37,7 +37,7 @@ class S2Vertex(val graph: S2Graph,
       if (rets.forall(identity)) graph.toS2Edge(edge)
       else throw new RuntimeException("addEdge to storage failed.")
     }
-    Await.result(future, Duration(WriteRPCTimeOut, TimeUnit.MILLISECONDS))
+    Await.result(future, Duration(graph.WriteRPCTimeOut, TimeUnit.MILLISECONDS))
   }
 
   override def properties[V](strings: String*): util.Iterator[VertexProperty[V]] = ???
