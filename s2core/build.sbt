@@ -35,7 +35,8 @@ libraryDependencies ++= Seq(
   "mysql" % "mysql-connector-java" % "5.1.28",
   "org.apache.kafka" % "kafka-clients" % "0.8.2.0" excludeAll(ExclusionRule(organization = "org.slf4j"), ExclusionRule(organization = "com.sun.jdmk"), ExclusionRule(organization = "com.sun.jmx"), ExclusionRule(organization = "javax.jms")),
   "org.apache.tinkerpop" % "gremlin-core" % "3.2.0-incubating",
-  "org.apache.tinkerpop" % "tinkergraph-gremlin" % "3.2.0-incubating"
+  "org.apache.tinkerpop" % "tinkergraph-gremlin" % "3.2.0-incubating",
+  "org.apache.tinkerpop" % "gremlin-test" % "3.2.0-incubating"
 )
 
 libraryDependencies := {

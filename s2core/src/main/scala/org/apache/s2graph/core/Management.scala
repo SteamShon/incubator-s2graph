@@ -25,6 +25,7 @@ import org.apache.s2graph.core.Management.JsonModel.{Index, Prop}
 import org.apache.s2graph.core.mysqls._
 import org.apache.s2graph.core.types.HBaseType._
 import org.apache.s2graph.core.types._
+import org.apache.s2graph.core.utils.logger
 import play.api.libs.json.Reads._
 import play.api.libs.json._
 import scala.collection.mutable
@@ -190,14 +191,20 @@ object Management extends JSONParser {
     }
   }
 
+  def EmptyPropKeyValues = new RuntimeException("empty property key value provided.")
 
   def toPropsJson(kvs: AnyRef*): Map[String, JsValue] = {
+    val fallback = Seq.empty[(String, Any)]
+    val ret = new mutable.HashMap[String, Any]()
+    val keys = new mutable.ListBuffer[String]()
+    val vals = new mutable.ListBuffer[Any]()
+
     val kvsSeq = kvs match {
+      case Nil =>
+        logger.debug(s"kvs is Nil")
+        fallback
       case arrOfArr: mutable.WrappedArray[_] =>
         val head = arrOfArr.head
-        val ret = new mutable.HashMap[String, Any]()
-        val keys = new mutable.ListBuffer[String]()
-        val vals = new mutable.ListBuffer[Any]()
         head match {
           case inner: IndexedSeq[Any] =>
             for {
@@ -206,23 +213,22 @@ object Management extends JSONParser {
               e match {
                 case t: (Any, Any) => // expect ElementHelper.asMap
                   ret.put(t._1.toString, t._2)
-                  i += 1
                 case t: Any => // other
                   if (i % 2 == 0) keys += t.toString
                   else vals += t
-                  i += 1
               }
             }
+//            logger.debug(s"[Ret]: $ret, [keys]: $keys, [vals]: $vals")
             ret.toSeq ++ keys.zip(vals)
-
           case _ =>
-            throw new RuntimeException(s"inner array has wrong type: ${head.getClass.getName}")
+            logger.debug(s"wrong type of inner. $head, ${head.getClass.getName}}")
+            fallback
         }
-
-
-      case _ => Nil
+      case _ =>
+        logger.debug(s"not wrapped array.")
+        fallback
     }
-
+    logger.debug(s"[KeyValues]: $kvsSeq")
     val props = for {
       (k, v) <- kvsSeq
     } yield {
@@ -235,9 +241,14 @@ object Management extends JSONParser {
           case _ =>
             v match {
               case s: String => JsString(s)
-              case Int => JsNumber(v.asInstanceOf[Int])
-              case Long => JsNumber(v.asInstanceOf[Long])
-              case Float | Double => JsNumber(v.asInstanceOf[Double])
+              case i: Int => JsNumber(i)
+              case l: Long => JsNumber(l)
+              case f: Float => JsNumber(f.toDouble)
+              case d: Double => JsNumber(d)
+              case ji: java.lang.Integer => JsNumber(ji.toInt)
+              case jl: java.lang.Long => JsNumber(jl.toLong)
+              case jf: java.lang.Float => JsNumber(jf.toDouble)
+              case jd: java.lang.Double => JsNumber(jd.toDouble)
               case js: JsValue => js
               case _ => throw new RuntimeException(s"unsupported value type. $v")
             }
@@ -252,6 +263,7 @@ object Management extends JSONParser {
   def toEdgeWithLabel(label: Label)(kvs: Any*): Edge = {
     import GraphUtil._
     val props = toPropsJson(kvs)
+    logger.debug(s"toEdgeWithLabel: $props")
     val ts = props.get("timestamp").map(_.toString.toLong).getOrElse(System.currentTimeMillis())
     val operation = props.get("op").map(jsValueToStr(_)).getOrElse("insert")
     val srcVId = props.get("from").map(jsValueToStr(_)).
@@ -284,12 +296,15 @@ object Management extends JSONParser {
              labelStr: String, direction: String = "out", props: String): Edge = {
 
     val label = tryOption(labelStr, getServiceLable)
-    val parser = toEdgeWithLabel(label) _
-    val params = Seq("ts", ts, "op", operation, "from", srcId, "to", tgtId, "label", labelStr,
-      "direction", direction)
+
+    val params = Seq("timestamp" -> ts,
+      "op" -> operation, "from" -> srcId, "to" -> tgtId, "label" -> labelStr,
+      "direction" -> direction)
     val propsJson = Json.parse(props).as[JsObject]
-    val propParams = propsJson.fieldSet.flatMap { case (k, v) => Seq(k, v) }
-    parser(params ++ propParams)
+    val propParams = propsJson.fieldSet
+    val allParams = params ++ propParams
+    logger.debug(s"[AllProps]: $allParams")
+    toEdgeWithLabel(label)(allParams: _*)
   }
 
   /** only used for tinkerPopt */

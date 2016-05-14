@@ -2,6 +2,8 @@ package org.apache.s2graph.core.tinkerpop.structure
 
 
 import org.apache.s2graph.core
+import org.apache.s2graph.core.mysqls.{Service, ServiceColumn}
+import org.apache.s2graph.core.utils.logger
 import org.apache.s2graph.core.{GraphUtil, Management}
 import play.api.libs.json.{Json, JsString}
 
@@ -102,17 +104,18 @@ class S2Graph(val configuration: Configuration) extends Graph {
   /** TODO: consider reasonable fallback */
   override def addVertex(objects: AnyRef*): Vertex = {
     val props = Management.toPropsJson(objects)
+    logger.debug(s"[S2Graph#ParsedProps]: $props")
     import GraphUtil._
+
     val vertexOpt = for {
       id <- props.get("id").map(jsValueToStr(_))
       serviceName <- props.get("serviceName").map(jsValueToStr(_))
       columnName <- props.get("columnName").map(jsValueToStr(_))
-    } yield {
-      val ts = props.get("timestamp").map(v => v.toString.toLong).getOrElse(System.currentTimeMillis())
-      val op = jsValueToStr(props.getOrElse("operation", JsString("insert")))
-      val propsStr = Json.toJson(props).toString
-      Management.toVertex(ts, op, id, serviceName, columnName, propsStr)
-    }
+      service <- Service.findByName(serviceName)
+      serviceColumn <- ServiceColumn.find(service.id.get, columnName)
+    } yield Management.toVertexWithServiceColumn(serviceColumn)(props.toSeq: _*)
+
+
     val vertex = vertexOpt.getOrElse(throw new RuntimeException("not all necessary data is provided."))
     val future = client.mutateVertices(Seq(vertex), withWait = true).map { rets =>
       if (rets.forall(identity)) toS2Vertex(vertex)
