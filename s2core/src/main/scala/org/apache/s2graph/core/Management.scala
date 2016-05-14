@@ -293,21 +293,33 @@ object Management extends JSONParser {
   }
 
   def toEdge(ts: Long, operation: String, srcId: String, tgtId: String,
-             labelStr: String, direction: String = "out", props: String): Edge = {
+             labelStr: String, direction: String = "", props: String): Edge = {
 
     val label = tryOption(labelStr, getServiceLable)
+    val dir = if (direction == "") GraphUtil.directions("out") else GraphUtil.toDirection(direction)
 
-    val params = Seq("timestamp" -> ts,
-      "op" -> operation, "from" -> srcId, "to" -> tgtId, "label" -> labelStr,
-      "direction" -> direction)
-    val propsJson = Json.parse(props).as[JsObject]
-    val propParams = propsJson.fieldSet
-    val allParams = params ++ propParams
-    logger.debug(s"[AllProps]: $allParams")
-    toEdgeWithLabel(label)(allParams: _*)
+    val srcVertexId = toInnerVal(srcId, label.srcColumn.columnType, label.schemaVersion)
+    val tgtVertexId = toInnerVal(tgtId, label.tgtColumn.columnType, label.schemaVersion)
+
+    val srcColId = label.srcColumn.id.get
+    val tgtColId = label.tgtColumn.id.get
+
+    val srcVertex = Vertex(SourceVertexId(srcColId, srcVertexId), System.currentTimeMillis())
+    val tgtVertex = Vertex(TargetVertexId(tgtColId, tgtVertexId), System.currentTimeMillis())
+
+    val labelWithDir = LabelWithDirection(label.id.get, dir)
+    val op = tryOption(operation, GraphUtil.toOp)
+
+    val jsObject = Json.parse(props).asOpt[JsObject].getOrElse(Json.obj())
+    val parsedProps = toProps(label, jsObject.fields).toMap
+    val propsWithTs = parsedProps.map(kv => kv._1 -> InnerValLikeWithTs(kv._2, ts)) ++
+      Map(LabelMeta.timeStampSeq -> InnerValLikeWithTs(InnerVal.withLong(ts, label.schemaVersion), ts))
+
+    Edge(srcVertex, tgtVertex, labelWithDir, op, version = ts, propsWithTs = propsWithTs)
+
   }
 
-  /** only used for tinkerPopt */
+  /** only used for tinkerPop */
   def toVertexWithServiceColumn(serviceColumn: ServiceColumn)(kvs: Any*): Vertex = {
 
     val props = toPropsJson(kvs)
@@ -332,15 +344,12 @@ object Management extends JSONParser {
       case Some(service) =>
         ServiceColumn.find(service.id.get, columnName) match {
           case None => throw new RuntimeException(s"$columnName is not exist. create service column first.")
-          case Some(serviceColumn) =>
-            val idVal = toInnerVal(id, serviceColumn.columnType, serviceColumn.schemaVersion)
-            val parser = toVertexWithServiceColumn(serviceColumn) _
-
-            val params = Seq("id", idVal, "serviceName", serviceColumn.service.serviceName,
-              "columnName", serviceColumn.columnName, "op" -> operation)
-            val propsJson = Json.parse(props).as[JsObject]
-            val propParams = propsJson.fieldSet.flatMap { case (k, v) => Seq(k, v) }
-            toVertexWithServiceColumn(serviceColumn)(params ++ propParams)
+          case Some(col) =>
+            val idVal = toInnerVal(id, col.columnType, col.schemaVersion)
+            val op = tryOption(operation, GraphUtil.toOp)
+            val jsObject = Json.parse(props).asOpt[JsObject].getOrElse(Json.obj())
+            val parsedProps = toProps(col, jsObject.fields).toMap
+            Vertex(VertexId(col.id.get, idVal), ts, parsedProps, op = op)
         }
     }
   }
