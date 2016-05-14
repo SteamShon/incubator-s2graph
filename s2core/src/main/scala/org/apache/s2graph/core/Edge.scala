@@ -60,7 +60,7 @@ case class SnapshotEdge(srcVertex: Vertex,
 
   // only for debug
   def toLogString() = {
-    List(ts, GraphUtil.fromOp(op), "e", srcVertex.innerId, tgtVertex.innerId, label.label, propsWithName).mkString("\t")
+    List(ts, GraphUtil.fromOp(op), "e", srcVertex.innerId, tgtVertex.innerId, label.label, props).mkString("\t")
   }
 }
 

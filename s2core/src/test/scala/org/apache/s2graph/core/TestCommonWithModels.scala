@@ -45,7 +45,11 @@ trait TestCommonWithModels {
 
     deleteTestLabel()
     deleteTestService()
-
+//    for {
+//      serviceColumn <- Seq(column, columnV2, columnV3, columnV4)
+//    } {
+//      ServiceColumn.delete(serviceColumn.id.get)
+//    }
     createTestService()
     createTestLabel()
   }
@@ -134,7 +138,7 @@ trait TestCommonWithModels {
   def createTestLabel() = {
     implicit val session = AutoSession
     management.createLabel(labelName, serviceName, columnName, columnType, serviceName, columnName, columnType,
-      isDirected = true, serviceName, testIdxProps, testProps, consistencyLevel, Some(hTableName), hTableTTL, VERSION1, false, "lg4")
+      isDirected = true, serviceName, testIdxProps, testProps, consistencyLevel, Some(hTableName), hTableTTL, VERSION2, false, "lg4")
 
     management.createLabel(labelNameV2, serviceNameV2, columnNameV2, columnTypeV2, serviceNameV2, tgtColumnNameV2, tgtColumnTypeV2,
       isDirected = true, serviceNameV2, testIdxProps, testProps, consistencyLevel, Some(hTableName), hTableTTL, VERSION2, false, "lg4")

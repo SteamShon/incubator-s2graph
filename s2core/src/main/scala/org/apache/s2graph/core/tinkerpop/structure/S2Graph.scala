@@ -3,8 +3,12 @@ package org.apache.s2graph.core.tinkerpop.structure
 
 import org.apache.s2graph.core
 import org.apache.s2graph.core.mysqls.{Service, ServiceColumn}
+import org.apache.s2graph.core.tinkerpop.process.S2GraphStepStrategy
 import org.apache.s2graph.core.utils.logger
 import org.apache.s2graph.core.{GraphUtil, Management}
+import org.apache.tinkerpop.gremlin.process.traversal.TraversalStrategies
+import org.apache.tinkerpop.gremlin.process.traversal.util.DefaultTraversalStrategies
+import org.apache.tinkerpop.gremlin.tinkergraph.process.traversal.strategy.optimization.TinkerGraphStepStrategy
 import play.api.libs.json.{Json, JsString}
 
 //import org.apache.s2graph.core.tinkerpop.process.S2GraphStepStrategy
@@ -24,13 +28,13 @@ import org.apache.commons.configuration.{BaseConfiguration, Configuration}
 
 object S2Graph {
 
-//  TraversalStrategies.GlobalCache.registerStrategies(classOf[S2Graph],
-//    TraversalStrategies.GlobalCache.getStrategies(classOf[Graph]).clone().addStrategies(S2GraphStepStrategy.instance()))
-//
-//
-//  val EMPTY_CONFIGURATION = new BaseConfiguration() {
-//    setProperty(Graph.GRAPH, classOf[S2Graph].getClass.getName())
-//  }
+  // clone() does not work because of permission from java and scala.
+  val strategies = (new DefaultTraversalStrategies()).addStrategies(S2GraphStepStrategy.instance())
+
+//  val defaultStrategies = TraversalStrategies.GlobalCache.getStrategies(classOf[Graph])
+//  val strategies = defaultStrategies.addStrategies(S2GraphStepStrategy.instance())
+  TraversalStrategies.GlobalCache.registerStrategies(classOf[S2Graph], strategies)
+
   val DefaultVertexLabel = ""
 
   def open(configuration: Configuration): S2Graph = {
@@ -105,6 +109,7 @@ class S2Graph(val configuration: Configuration) extends Graph {
   override def addVertex(objects: AnyRef*): Vertex = {
     val props = Management.toPropsJson(objects)
     logger.debug(s"[S2Graph#ParsedProps]: $props")
+
     import GraphUtil._
 
     val vertexOpt = for {

@@ -26,7 +26,6 @@ import org.apache.s2graph.core.mysqls._
 import org.apache.s2graph.core.types.HBaseType._
 import org.apache.s2graph.core.types._
 import org.apache.s2graph.core.utils.logger
-import play.api.libs.json.Reads._
 import play.api.libs.json._
 import scala.collection.mutable
 import scala.util.Try
@@ -232,14 +231,7 @@ object Management extends JSONParser {
     val props = for {
       (k, v) <- kvsSeq
     } yield {
-        val jsValue: JsValue  = k match {
-          case "timestamp" => JsNumber(v.toString.toLong)
-          case "op" => JsString(v.toString)
-          case "id" => JsString(v.toString)
-          case "serviceName" => JsString(v.toString)
-          case "columnName" => JsString(v.toString)
-          case _ =>
-            v match {
+        val jsValue: JsValue  = v match {
               case s: String => JsString(s)
               case i: Int => JsNumber(i)
               case l: Long => JsNumber(l)
@@ -249,10 +241,12 @@ object Management extends JSONParser {
               case jl: java.lang.Long => JsNumber(jl.toLong)
               case jf: java.lang.Float => JsNumber(jf.toDouble)
               case jd: java.lang.Double => JsNumber(jd.toDouble)
-              case js: JsValue => js
+              case js: java.lang.String => JsString(js)
+              case jv: JsValue => jv
               case _ => throw new RuntimeException(s"unsupported value type. $v")
-            }
+
         }
+        logger.debug(s"[ClassOf Value]: ${k}, ${v.getClass.getName}, $jsValue")
         k.toString -> jsValue
       }
 
@@ -321,7 +315,6 @@ object Management extends JSONParser {
 
   /** only used for tinkerPop */
   def toVertexWithServiceColumn(serviceColumn: ServiceColumn)(kvs: Any*): Vertex = {
-
     val props = toPropsJson(kvs)
     val vertexOpt = for {
       id <- props.get("id").map(jsValueToStr(_))
