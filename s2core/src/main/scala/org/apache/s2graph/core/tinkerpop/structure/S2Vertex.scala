@@ -1,28 +1,44 @@
 package org.apache.s2graph.core.tinkerpop.structure
 
-import java.util
-import java.util.concurrent.TimeUnit
 
 import org.apache.s2graph._
 import org.apache.s2graph.core.mysqls.Label
 import org.apache.s2graph.core.{GraphUtil, Management}
 import org.apache.tinkerpop.gremlin.structure.VertexProperty.Cardinality
 import org.apache.tinkerpop.gremlin.structure._
-import play.api.libs.json.Json
-
+import org.apache.tinkerpop.gremlin.structure.util.ElementHelper
+import scala.collection.mutable
 import scala.concurrent.Await
 import scala.concurrent.duration.Duration
+import scala.collection.JavaConversions._
+import java.util
+import java.util.concurrent.TimeUnit
+
 
 class S2Vertex(val graph: S2Graph,
                val vertex: core.Vertex,
                val label: String) extends Vertex {
-
+  val properties = new mutable.HashMap[String, Seq[VertexProperty[_]]]
 
   override def vertices(direction: Direction, strings: String*): util.Iterator[Vertex] = ???
 
   override def edges(direction: Direction, strings: String*): util.Iterator[Edge] = ???
 
-  override def property[V](cardinality: Cardinality, s: String, v: V, objects: AnyRef*): VertexProperty[V] = ???
+  override def property[V](cardinality: Cardinality,
+                           key: String,
+                           value: V,
+                           kvs: AnyRef*): VertexProperty[V] = ???
+//  {
+//    val vertexProperty = new S2VertexProperty[V](id(), this, key, value)
+//    val ls = properties.get(key) match {
+//      case None => Seq(vertexProperty)
+//      case Some(old) => old :+ vertexProperty
+//    }
+//    properties.put(key, ls)
+//    ElementHelper.attachProperties(vertexProperty, kvs)
+//    vertexProperty
+//  }
+
 
   override def addEdge(labelName: String, tgtVertex: Vertex, kvs: AnyRef*): Edge = {
     if (!tgtVertex.isInstanceOf[S2Vertex]) throw new RuntimeException("not supported type of vertex on tgtVertex.")
@@ -48,9 +64,17 @@ class S2Vertex(val graph: S2Graph,
     Await.result(future, Duration(graph.WriteRPCTimeOut, TimeUnit.MILLISECONDS))
   }
 
-  override def properties[V](strings: String*): util.Iterator[VertexProperty[V]] = ???
+  override def properties[V](keys: String*): util.Iterator[VertexProperty[V]] = ???
+//  {
+//    val set = for {
+//      key <- keys
+//      value = property[V](key) if value != null
+//    } yield value
+//
+//    set.iterator
+//  }
 
   override def remove(): Unit = ???
 
-  override def id(): AnyRef = vertex.innerId.toIdString()
+  override def id(): AnyRef = vertex.id
 }

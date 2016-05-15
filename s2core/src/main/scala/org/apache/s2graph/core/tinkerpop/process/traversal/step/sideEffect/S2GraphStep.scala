@@ -9,6 +9,7 @@ import org.apache.tinkerpop.gremlin.process.traversal.step.map.GraphStep
 import org.apache.tinkerpop.gremlin.process.traversal.step.util.HasContainer
 import org.apache.tinkerpop.gremlin.structure.{Edge, Graph, Vertex, Element}
 import scala.collection.JavaConversions._
+import scala.collection.mutable.ListBuffer
 
 class S2GraphStep[S, E <: Element](orgStep: GraphStep[S, E])
   extends GraphStep[S, E](orgStep.getTraversal(),
@@ -33,16 +34,18 @@ class S2GraphStep[S, E <: Element](orgStep: GraphStep[S, E])
     override def get(): util.Iterator[E] = newIteratorSupplier
   })
 
-  private def vertices(): util.Iterator[E] = {
-    val ls = new util.ArrayList[E]()
-    ls.iterator()
-  }
+  val hasContainers = ListBuffer.empty[HasContainer]
 
-  private def edges(): util.Iterator[E] = {
-    val ls = new util.ArrayList[E]()
-    ls.iterator()
-  }
-  override def getHasContainers: util.List[HasContainer] = ???
+  private def vertices(): util.Iterator[E] =
+    throw new RuntimeException("not supported.")
 
-  override def addHasContainer(hasContainer: HasContainer): Unit = ???
+
+  private def edges(): util.Iterator[E] =
+    throw new RuntimeException("not supported.")
+
+  override def getHasContainers: util.List[HasContainer] = hasContainers
+
+  override def addHasContainer(hasContainer: HasContainer): Unit = {
+    hasContainers += hasContainer
+  }
 }

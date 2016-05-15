@@ -1,40 +1,39 @@
-package org.apache.s2graph.core.tinkerpop.structure
-
-import java.util
-
-import org.apache.tinkerpop.gremlin.structure.util.ElementHelper
-import org.apache.tinkerpop.gremlin.structure.{Property, Vertex, VertexProperty}
+//package org.apache.s2graph.core.tinkerpop.structure
 //
-//class S2VertexProperty[V](val id: Any,
+//import org.apache.tinkerpop.gremlin.structure.util.ElementHelper
+//import org.apache.tinkerpop.gremlin.structure.{Property, Vertex, VertexProperty}
+//import scala.collection.JavaConversions._
+//import java.util
+//
+//class S2VertexProperty[V](val id: AnyRef,
 //                          val vertex: S2Vertex,
 //                          val key: String,
 //                          val value: V,
-//                          val propertyKeyValues: Any*) extends VertexProperty[V](id, key) {
+//                          val kvs: AnyRef*) extends VertexProperty[V] {
 //
-//  val properties: scala.collection.mutable.Map[String, Property[V]] = scala.collection.mutable.Map.empty
+//  val properties: scala.collection.mutable.Map[String, Property[_]] = scala.collection.mutable.Map.empty
 //
-//  ElementHelper.legalPropertyKeyValueArray(propertyKeyValues)
-//  ElementHelper.attachProperties(this, propertyKeyValues)
+//  ElementHelper.legalPropertyKeyValueArray(kvs)
+//  ElementHelper.attachProperties(vertex, kvs)
 //
-//  override def properties[U](strings: String*): util.Iterator[Property[U]] = {
-//    val ls = new util.ArrayList[Property[U]]()
-//    for {
-//      (key, prop) <- properties
-//    } {
-//      ls.add(prop.asInstanceOf[Property[U]])
+//  override def properties[U](keys: String*): util.Iterator[Property[U]] = {
+//    val set = for {
+//      key <- keys
+//      prop = property[U](key) if prop != null
+//    } yield {
+//      prop
 //    }
-//    ls.iterator()
+//    set.iterator
 //  }
 //
 //  override def element(): Vertex = vertex
 //
 //  override def isPresent: Boolean = true
 //
-//
-//  override def property[V](s: String, v: V): Property[V] = {
-//    val prop = new S2Property[V](this, s, v)
-//    properties.put(s, prop)
-//    prop
+//  override def property[U](key: String, v: U): Property[U] = {
+//    val newProperty = new S2Property[U](vertex, key, v)
+//    properties.put(key, newProperty)
+//    newProperty
 //  }
 //
 //  override def remove(): Unit = ???

@@ -22,7 +22,7 @@ class S2GraphStepStrategy extends AbstractTraversalStrategy[ProviderOptimization
     logger.debug(s"[S2GraphStepStrategy]")
     if (!TraversalHelper.onGraphComputer(traversal)) {
       //
-
     }
+
   }
 }
