@@ -21,7 +21,7 @@ package org.apache.s2graph.core
 
 import java.util.regex.Pattern
 
-import play.api.libs.json.Json
+import play.api.libs.json.{JsString, JsValue, Json}
 
 import scala.util.hashing.MurmurHash3
 
@@ -153,6 +153,11 @@ object GraphUtil {
     } else {
       Json.parse(s).asOpt[List[String]].getOrElse(List.empty[String])
     }
+  }
+
+  def jsValueToStr(jsValue: JsValue): String = jsValue match {
+    case s: JsString => s.value
+    case _ => jsValue.toString
   }
 
 }

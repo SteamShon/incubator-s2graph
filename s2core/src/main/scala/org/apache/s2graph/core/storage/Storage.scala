@@ -1070,7 +1070,7 @@ abstract class Storage[R](val config: Config)(implicit ec: ExecutionContext) {
 
       val prevStepTgtVertexIdEdges = for {
         (vertex, edgesWithScore) <- groupedBy
-      } yield vertex.id -> edgesWithScore.map { case (vertex, edgeWithScore) => edgeWithScore }
+      } yield vertex.vertexId -> edgesWithScore.map { case (vertex, edgeWithScore) => edgeWithScore }
 
       val nextStepSrcVertices = if (prevStepLimit >= 0) {
         groupedByFiltered.toSeq.sortBy(-1 * _._2).take(prevStepLimit)

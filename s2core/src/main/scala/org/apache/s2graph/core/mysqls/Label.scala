@@ -269,8 +269,11 @@ case class Label(id: Option[Int], label: String,
 
   //  lazy val firstHBaseTableName = hbaseTableName.split(",").headOption.getOrElse(Config.HBASE_TABLE_NAME)
   lazy val srcService = Service.findById(srcServiceId)
+  lazy val srcServiceName = srcService.serviceName
   lazy val tgtService = Service.findById(tgtServiceId)
+  lazy val tgtServiceName = tgtService.serviceName
   lazy val service = Service.findById(serviceId)
+
   /**
    * TODO
    * change this to apply hbase table from target serviceName

@@ -307,7 +307,7 @@ object Graph {
     element
   } recover {
     case e: Exception =>
-      logger.error(s"$e", e)
+      logger.error(s"[toGraphElement]: $e", e)
       None
   } get
 

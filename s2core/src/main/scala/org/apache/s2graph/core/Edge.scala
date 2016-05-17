@@ -60,7 +60,7 @@ case class SnapshotEdge(srcVertex: Vertex,
 
   // only for debug
   def toLogString() = {
-    List(ts, GraphUtil.fromOp(op), "e", srcVertex.innerId, tgtVertex.innerId, label.label, propsWithName).mkString("\t")
+    List(ts, GraphUtil.fromOp(op), "e", srcVertex.innerId, tgtVertex.innerId, label.label, props).mkString("\t")
   }
 }
 
@@ -148,8 +148,11 @@ case class Edge(srcVertex: Vertex,
 
   if (!props.containsKey(LabelMeta.timeStampSeq)) throw new Exception("Timestamp is required.")
   //  assert(propsWithTs.containsKey(LabelMeta.timeStampSeq))
-  val schemaVer = label.schemaVersion
+
   val ts = propsWithTs(LabelMeta.timeStampSeq).innerVal.toString.toLong
+
+  /** TODO: this is only for TinkerPop integration. */
+  def id = Seq(srcVertex.innerId.toIdString, labelWithDir.labelId, tgtVertex.innerId.toIdString).mkString("_")
 
   def props = propsWithTs.mapValues(_.innerVal)
 
@@ -189,6 +192,8 @@ case class Edge(srcVertex: Vertex,
   def reverseSrcTgtEdge = copy(srcVertex = tgtVertex, tgtVertex = srcVertex)
 
   def label = Label.findById(labelWithDir.labelId)
+
+  def schemaVer = label.schemaVersion
 
   def labelOrders = LabelIndex.findByLabelIdAll(labelWithDir.labelId)
 
@@ -248,7 +253,7 @@ case class Edge(srcVertex: Vertex,
   } yield meta.name -> jsValue
 
   def updateTgtVertex(id: InnerValLike) = {
-    val newId = TargetVertexId(tgtVertex.id.colId, id)
+    val newId = TargetVertexId(tgtVertex.vertexId.colId, id)
     val newTgtVertex = Vertex(newId, tgtVertex.ts, tgtVertex.props)
     Edge(srcVertex, newTgtVertex, labelWithDir, op, version, propsWithTs)
   }

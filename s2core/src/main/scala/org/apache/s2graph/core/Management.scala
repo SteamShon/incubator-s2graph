@@ -20,13 +20,14 @@
 package org.apache.s2graph.core
 
 import org.apache.s2graph.core.GraphExceptions.{InvalidHTableException, LabelAlreadyExistException, LabelNotExistException}
+import org.apache.s2graph.core.GraphUtil._
 import org.apache.s2graph.core.Management.JsonModel.{Index, Prop}
 import org.apache.s2graph.core.mysqls._
 import org.apache.s2graph.core.types.HBaseType._
 import org.apache.s2graph.core.types._
-import play.api.libs.json.Reads._
+import org.apache.s2graph.core.utils.logger
 import play.api.libs.json._
-
+import scala.collection.mutable
 import scala.util.Try
 
 /**
@@ -189,44 +190,141 @@ object Management extends JSONParser {
     }
   }
 
+  def EmptyPropKeyValues = new RuntimeException("empty property key value provided.")
+
+  def toPropsJson(kvs: AnyRef*): Map[String, JsValue] = {
+    if (kvs.isEmpty) return Map.empty
+
+    val fallback = Seq.empty[(String, Any)]
+    val ret = new mutable.HashMap[String, Any]()
+    val keys = new mutable.ListBuffer[String]()
+    val vals = new mutable.ListBuffer[Any]()
+
+    val kvsSeq = kvs match {
+      case Nil =>
+        logger.debug(s"kvs is Nil")
+        fallback
+      case arrOfArr: mutable.WrappedArray[_] =>
+        val head = arrOfArr.head
+        head match {
+          case inner: IndexedSeq[Any] =>
+            for {
+              (e, i) <- inner.zipWithIndex
+            } {
+              e match {
+                case t: (Any, Any) => // expect ElementHelper.asMap
+                  ret.put(t._1.toString, t._2)
+                case t: Any => // other
+                  if (i % 2 == 0) keys += t.toString
+                  else vals += t
+              }
+            }
+//            logger.debug(s"[Ret]: $ret, [keys]: $keys, [vals]: $vals")
+            ret.toSeq ++ keys.zip(vals)
+          case _ =>
+            logger.debug(s"wrong type of inner. $head, ${head.getClass.getName}}")
+            fallback
+        }
+      case _ =>
+        logger.debug(s"not wrapped array.")
+        fallback
+    }
+    logger.debug(s"[KeyValues]: $kvsSeq")
+    val props = for {
+      (k, v) <- kvsSeq
+    } yield {
+        val jsValue: JsValue  = v match {
+              case s: String => JsString(s)
+              case i: Int => JsNumber(i)
+              case l: Long => JsNumber(l)
+              case f: Float => JsNumber(f.toDouble)
+              case d: Double => JsNumber(d)
+              case ji: java.lang.Integer => JsNumber(ji.toInt)
+              case jl: java.lang.Long => JsNumber(jl.toLong)
+              case jf: java.lang.Float => JsNumber(jf.toDouble)
+              case jd: java.lang.Double => JsNumber(jd.toDouble)
+              case js: java.lang.String => JsString(js)
+              case jv: JsValue => jv
+              case _ => throw new RuntimeException(s"unsupported value type. $v")
+
+        }
+        logger.debug(s"[ClassOf Value]: ${k}, ${v.getClass.getName}, $jsValue")
+        k.toString -> jsValue
+      }
+
+    props.toMap
+  }
+
+  /** only used for tinkerPopt */
+  def toEdgeWithLabel(label: Label)(kvs: Any*): Edge = {
+    import GraphUtil._
+    val props = toPropsJson(kvs)
+    logger.debug(s"toEdgeWithLabel: $props")
+    val ts = props.get("timestamp").map(_.toString.toLong).getOrElse(System.currentTimeMillis())
+    val operation = props.get("op").map(jsValueToStr(_)).getOrElse("insert")
+    val srcVId = props.get("from").map(jsValueToStr(_)).
+      getOrElse(throw new RuntimeException("should provide from for source vertex id."))
+    val tgtVId = props.get("to").map(jsValueToStr(_)).
+      getOrElse(throw new RuntimeException("should provide to for target vertex id."))
+
+    val dir = props.get("direction").map(d => GraphUtil.toDirection(d.toString)).getOrElse(GraphUtil.directions("out"))
+
+    val srcVertexId = toInnerVal(srcVId, label.srcColumn.columnType, label.schemaVersion)
+    val tgtVertexId = toInnerVal(tgtVId, label.tgtColumn.columnType, label.schemaVersion)
+
+    val srcColId = label.srcColumn.id.get
+    val tgtColId = label.tgtColumn.id.get
+
+    val srcVertex = Vertex(SourceVertexId(srcColId, srcVertexId), System.currentTimeMillis())
+    val tgtVertex = Vertex(TargetVertexId(tgtColId, tgtVertexId), System.currentTimeMillis())
+
+    val labelWithDir = LabelWithDirection(label.id.get, dir)
+    val op = tryOption(operation, GraphUtil.toOp)
+
+    val parsedProps = toProps(label, props.toSeq).toMap
+    val propsWithTs = parsedProps.map(kv => (kv._1 -> InnerValLikeWithTs(kv._2, ts))) ++
+      Map(LabelMeta.timeStampSeq -> InnerValLikeWithTs(InnerVal.withLong(ts, label.schemaVersion), ts))
+
+    Edge(srcVertex, tgtVertex, labelWithDir, op, version = ts, propsWithTs = propsWithTs)
+  }
+
   def toEdge(ts: Long, operation: String, srcId: String, tgtId: String,
              labelStr: String, direction: String = "", props: String): Edge = {
 
     val label = tryOption(labelStr, getServiceLable)
-    val dir =
-      if (direction == "")
-//        GraphUtil.toDirection(label.direction)
-        GraphUtil.directions("out")
-      else
-        GraphUtil.toDirection(direction)
-
-    //    logger.debug(s"$srcId, ${label.srcColumnWithDir(dir)}")
-    //    logger.debug(s"$tgtId, ${label.tgtColumnWithDir(dir)}")
+    val dir = if (direction == "") GraphUtil.directions("out") else GraphUtil.toDirection(direction)
 
     val srcVertexId = toInnerVal(srcId, label.srcColumn.columnType, label.schemaVersion)
     val tgtVertexId = toInnerVal(tgtId, label.tgtColumn.columnType, label.schemaVersion)
 
     val srcColId = label.srcColumn.id.get
     val tgtColId = label.tgtColumn.id.get
-    val (srcVertex, tgtVertex) = if (dir == GraphUtil.directions("out")) {
-      (Vertex(SourceVertexId(srcColId, srcVertexId), System.currentTimeMillis()),
-        Vertex(TargetVertexId(tgtColId, tgtVertexId), System.currentTimeMillis()))
-    } else {
-      (Vertex(SourceVertexId(tgtColId, tgtVertexId), System.currentTimeMillis()),
-        Vertex(TargetVertexId(srcColId, srcVertexId), System.currentTimeMillis()))
-    }
 
-    //    val dir = if (direction == "") GraphUtil.toDirection(label.direction) else GraphUtil.toDirection(direction)
+    val srcVertex = Vertex(SourceVertexId(srcColId, srcVertexId), System.currentTimeMillis())
+    val tgtVertex = Vertex(TargetVertexId(tgtColId, tgtVertexId), System.currentTimeMillis())
+
     val labelWithDir = LabelWithDirection(label.id.get, dir)
     val op = tryOption(operation, GraphUtil.toOp)
 
     val jsObject = Json.parse(props).asOpt[JsObject].getOrElse(Json.obj())
     val parsedProps = toProps(label, jsObject.fields).toMap
-    val propsWithTs = parsedProps.map(kv => (kv._1 -> InnerValLikeWithTs(kv._2, ts))) ++
+    val propsWithTs = parsedProps.map(kv => kv._1 -> InnerValLikeWithTs(kv._2, ts)) ++
       Map(LabelMeta.timeStampSeq -> InnerValLikeWithTs(InnerVal.withLong(ts, label.schemaVersion), ts))
 
     Edge(srcVertex, tgtVertex, labelWithDir, op, version = ts, propsWithTs = propsWithTs)
 
+  }
+
+  /** only used for tinkerPop */
+  def toVertexWithServiceColumn(serviceColumn: ServiceColumn)(vertexId: String)(kvs: Any*): Vertex = {
+    val props = if (kvs.size == 0) Map.empty[String, JsValue] else toPropsJson(kvs)
+    val ts = props.get("timestamp").map(_.toString.toLong).getOrElse(System.currentTimeMillis())
+    val operation = props.get("op").map(jsValueToStr(_)).getOrElse("insert")
+
+    val idVal = toInnerVal(vertexId, serviceColumn.columnType, serviceColumn.schemaVersion)
+    val op = tryOption(operation, GraphUtil.toOp)
+    val parsedProps = toProps(serviceColumn, props.toSeq).toMap
+    Vertex(VertexId(serviceColumn.id.get, idVal), ts, parsedProps, op = op)
   }
 
   def toVertex(ts: Long, operation: String, id: String, serviceName: String, columnName: String, props: String): Vertex = {
@@ -239,16 +337,16 @@ object Management extends JSONParser {
             val idVal = toInnerVal(id, col.columnType, col.schemaVersion)
             val op = tryOption(operation, GraphUtil.toOp)
             val jsObject = Json.parse(props).asOpt[JsObject].getOrElse(Json.obj())
-            val parsedProps = toProps(col, jsObject).toMap
+            val parsedProps = toProps(col, jsObject.fields).toMap
             Vertex(VertexId(col.id.get, idVal), ts, parsedProps, op = op)
         }
     }
   }
 
-  def toProps(column: ServiceColumn, js: JsObject): Seq[(Int, InnerValLike)] = {
+  def toProps(column: ServiceColumn, kvs: Seq[(String, JsValue)]): Seq[(Int, InnerValLike)] = {
 
     val props = for {
-      (k, v) <- js.fields
+      (k, v) <- kvs
       meta <- column.metasInvMap.get(k)
     } yield {
         val innerVal = jsValueToInnerVal(v, meta.dataType, column.schemaVersion).getOrElse(
@@ -260,9 +358,9 @@ object Management extends JSONParser {
 
   }
 
-  def toProps(label: Label, js: Seq[(String, JsValue)]): Seq[(Byte, InnerValLike)] = {
+  def toProps(label: Label, kvs: Seq[(String, JsValue)]): Seq[(Byte, InnerValLike)] = {
     val props = for {
-      (k, v) <- js
+      (k, v) <- kvs
       meta <- label.metaPropsInvMap.get(k)
       innerVal <- jsValueToInnerVal(v, meta.dataType, label.schemaVersion)
     } yield (meta.seq, innerVal)

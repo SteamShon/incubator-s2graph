@@ -46,12 +46,12 @@ class SnapshotEdgeSerializable(snapshotEdge: SnapshotEdge) extends Serializable[
     propsToKeyValuesWithTs(snapshotEdge.props.toList))
 
   override def toKeyValues: Seq[SKeyValue] = {
-    val srcIdBytes = VertexId.toSourceVertexId(snapshotEdge.srcVertex.id).bytes
+    val srcIdBytes = VertexId.toSourceVertexId(snapshotEdge.srcVertex.vertexId).bytes
     val labelWithDirBytes = snapshotEdge.labelWithDir.bytes
     val labelIndexSeqWithIsInvertedBytes = labelOrderSeqWithIsInverted(LabelIndex.DefaultSeq, isInverted = true)
 
     val row = Bytes.add(srcIdBytes, labelWithDirBytes, labelIndexSeqWithIsInvertedBytes)
-    val tgtIdBytes = VertexId.toTargetVertexId(snapshotEdge.tgtVertex.id).bytes
+    val tgtIdBytes = VertexId.toTargetVertexId(snapshotEdge.tgtVertex.vertexId).bytes
 
     val qualifier = tgtIdBytes
 

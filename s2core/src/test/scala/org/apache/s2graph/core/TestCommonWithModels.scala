@@ -22,6 +22,7 @@ package org.apache.s2graph.core
 import com.typesafe.config.{Config, ConfigFactory}
 import org.apache.s2graph.core.Management.JsonModel.{Index, Prop}
 import org.apache.s2graph.core.mysqls.{Label, LabelIndex, Service, ServiceColumn}
+import org.apache.s2graph.core.rest.RequestParser
 import org.apache.s2graph.core.types.{InnerVal, LabelWithDirection}
 import scalikejdbc.AutoSession
 
@@ -32,20 +33,27 @@ trait TestCommonWithModels {
   import InnerVal._
   import types.HBaseType._
 
+  implicit val ec = ExecutionContext.Implicits.global
+
   var graph: Graph = _
   var config: Config = _
   var management: Management = _
+  var parser: RequestParser = _
 
-  def initTests() = {
+  def initTests(): Unit = {
     config = ConfigFactory.load()
-    graph = new Graph(config)(ExecutionContext.Implicits.global)
+    graph = new Graph(config)(ec)
     management = new Management(graph)
-
+    parser = new RequestParser(config)
     implicit val session = AutoSession
 
     deleteTestLabel()
     deleteTestService()
-
+//    for {
+//      serviceColumn <- Seq(column, columnV2, columnV3, columnV4)
+//    } {
+//      ServiceColumn.delete(serviceColumn.id.get)
+//    }
     createTestService()
     createTestLabel()
   }
@@ -134,7 +142,7 @@ trait TestCommonWithModels {
   def createTestLabel() = {
     implicit val session = AutoSession
     management.createLabel(labelName, serviceName, columnName, columnType, serviceName, columnName, columnType,
-      isDirected = true, serviceName, testIdxProps, testProps, consistencyLevel, Some(hTableName), hTableTTL, VERSION1, false, "lg4")
+      isDirected = true, serviceName, testIdxProps, testProps, consistencyLevel, Some(hTableName), hTableTTL, VERSION2, false, "lg4")
 
     management.createLabel(labelNameV2, serviceNameV2, columnNameV2, columnTypeV2, serviceNameV2, tgtColumnNameV2, tgtColumnTypeV2,
       isDirected = true, serviceNameV2, testIdxProps, testProps, consistencyLevel, Some(hTableName), hTableTTL, VERSION2, false, "lg4")

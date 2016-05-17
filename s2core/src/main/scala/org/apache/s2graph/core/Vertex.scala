@@ -23,17 +23,20 @@ import org.apache.s2graph.core.mysqls.{ColumnMeta, Service, ServiceColumn}
 import org.apache.s2graph.core.types.{InnerVal, InnerValLike, SourceVertexId, VertexId}
 import play.api.libs.json.Json
 
-case class Vertex(id: VertexId,
+case class Vertex(vertexId: VertexId,
                   ts: Long = System.currentTimeMillis(),
                   props: Map[Int, InnerValLike] = Map.empty[Int, InnerValLike],
                   op: Byte = 0,
                   belongLabelIds: Seq[Int] = Seq.empty) extends GraphElement {
 
-  val innerId = id.innerId
+  val innerId = vertexId.innerId
+
+  /** only for tinkerpop */
+  def id = innerId.toIdString()
 
   def schemaVer = serviceColumn.schemaVersion
 
-  def serviceColumn = ServiceColumn.findById(id.colId)
+  def serviceColumn = ServiceColumn.findById(vertexId.colId)
 
   def service = Service.findById(serviceColumn.serviceId)
 
@@ -50,11 +53,11 @@ case class Vertex(id: VertexId,
 
   override def queueKey = Seq(ts.toString, serviceName).mkString("|")
 
-  override def queuePartitionKey = id.innerId.toString
+  override def queuePartitionKey = vertexId.innerId.toString
 
   def propsWithName = for {
     (seq, v) <- props
-    meta <- ColumnMeta.findByIdAndSeq(id.colId, seq.toByte)
+    meta <- ColumnMeta.findByIdAndSeq(vertexId.colId, seq.toByte)
   } yield (meta.name -> v.toString)
 
   //  /** only used by bulk loader */
@@ -73,11 +76,11 @@ case class Vertex(id: VertexId,
   //    List(put)
   //  }
 
-  def toEdgeVertex() = Vertex(SourceVertexId(id.colId, innerId), ts, props, op)
+  def toEdgeVertex() = Vertex(SourceVertexId(vertexId.colId, innerId), ts, props, op)
 
 
   override def hashCode() = {
-    val hash = id.hashCode()
+    val hash = vertexId.hashCode()
     //    logger.debug(s"Vertex.hashCode: $this -> $hash")
     hash
   }
@@ -85,24 +88,24 @@ case class Vertex(id: VertexId,
   override def equals(obj: Any) = {
     obj match {
       case otherVertex: Vertex =>
-        val ret = id == otherVertex.id
+        val ret = vertexId == otherVertex.vertexId
         //        logger.debug(s"Vertex.equals: $this, $obj => $ret")
         ret
       case _ => false
     }
   }
 
-  def withProps(newProps: Map[Int, InnerValLike]) = Vertex(id, ts, newProps, op)
+  def withProps(newProps: Map[Int, InnerValLike]) = Vertex(vertexId, ts, newProps, op)
 
   def toLogString(): String = {
     val (serviceName, columnName) =
-      if (!id.storeColId) ("", "")
+      if (!vertexId.storeColId) ("", "")
       else (serviceColumn.service.serviceName, serviceColumn.columnName)
 
     if (propsWithName.nonEmpty)
-      Seq(ts, GraphUtil.fromOp(op), "v", id.innerId, serviceName, columnName, Json.toJson(propsWithName)).mkString("\t")
+      Seq(ts, GraphUtil.fromOp(op), "v", vertexId.innerId, serviceName, columnName, Json.toJson(propsWithName)).mkString("\t")
     else
-      Seq(ts, GraphUtil.fromOp(op), "v", id.innerId, serviceName, columnName).mkString("\t")
+      Seq(ts, GraphUtil.fromOp(op), "v", vertexId.innerId, serviceName, columnName).mkString("\t")
   }
 }
 

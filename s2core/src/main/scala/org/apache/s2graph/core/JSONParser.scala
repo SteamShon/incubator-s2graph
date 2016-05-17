@@ -35,6 +35,7 @@ trait JSONParser {
         case InnerVal.BOOLEAN => JsBoolean(innerVal.value.asInstanceOf[Boolean])
         case InnerVal.BYTE | InnerVal.SHORT | InnerVal.INT | InnerVal.LONG | InnerVal.FLOAT | InnerVal.DOUBLE =>
           //        case t if InnerVal.NUMERICS.contains(t) =>
+//          logger.debug(s"InnerVal: ${innerVal.value.getClass.getName}")
           innerVal.value match {
             case l: Long => JsNumber(l)
             case i: Int => JsNumber(i)
@@ -52,6 +53,22 @@ trait JSONParser {
                 case InnerVal.DOUBLE => JsNumber(d.toDouble)
                 case _ => throw new RuntimeException(s"$innerVal, $dType => $dataType")
               }
+
+            case jl: java.lang.Long => JsNumber(jl.toLong)
+            case ji: java.lang.Integer => JsNumber(ji.toInt)
+            case js: java.lang.Short => JsNumber(js.toLong)
+            case jb: java.lang.Byte => JsNumber(jb.toLong)
+            case jd: java.lang.Double =>
+              //              JsNumber(d)
+              dType match {
+                case InnerVal.BYTE => JsNumber(jd.toInt)
+                case InnerVal.SHORT => JsNumber(jd.toInt)
+                case InnerVal.INT => JsNumber(jd.toInt)
+                case InnerVal.LONG => JsNumber(jd.toLong)
+                case InnerVal.FLOAT => JsNumber(jd.toDouble)
+                case InnerVal.DOUBLE => JsNumber(jd.toDouble)
+                case _ => throw new RuntimeException(s"$innerVal, $dType => $dataType")
+              }
             case num: BigDecimal =>
               //              JsNumber(num)
               //              JsNumber(InnerVal.scaleNumber(num.asInstanceOf[BigDecimal], dType))
@@ -65,7 +82,7 @@ trait JSONParser {
                 case _ => throw new RuntimeException(s"$innerVal, $dType => $dataType")
               }
             //              JsNumber(num.toLong)
-            case _ => throw new RuntimeException(s"$innerVal, Numeric Unknown => $dataType")
+            case _ => throw new RuntimeException(s"$innerVal, Numeric Unknown => $dataType: ${innerVal.value.getClass.getName}")
           }
         //          JsNumber(InnerVal.scaleNumber(innerVal.asInstanceOf[BigDecimal], dType))
         case _ => throw new RuntimeException(s"$innerVal, Unknown => $dataType")
@@ -73,7 +90,7 @@ trait JSONParser {
       Some(jsValue)
     } catch {
       case e: Exception =>
-        logger.info(s"JSONParser.innerValToJsValue: $e")
+        logger.error(s"JSONParser.innerValToJsValue", e)
         None
     }
   }
@@ -93,7 +110,8 @@ trait JSONParser {
 
   def toInnerVal(str: String, dataType: String, version: String): InnerValLike = {
     //TODO:
-    //        logger.error(s"toInnerVal: $str, $dataType, $version")
+//    logger.error(s"toInnerVal: $str, $dataType, $version")
+
     val s =
       if (str.startsWith("\"") && str.endsWith("\"")) str.substring(1, str.length - 1)
       else str
@@ -144,10 +162,10 @@ trait JSONParser {
       }
     } catch {
       case e: Exception =>
-        logger.error(e.getMessage)
+        logger.error(s"[jsValueToInnerVal]: $jsValue, $dataType, $version", e)
         None
     }
-
+    logger.debug(s"[jsValueToInnerVal]: $jsValue, $dataType, $version => $ret")
     ret
   }
 }
