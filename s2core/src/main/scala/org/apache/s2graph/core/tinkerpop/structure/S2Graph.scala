@@ -6,15 +6,11 @@ import org.apache.s2graph.core.GraphUtil._
 import org.apache.s2graph.core.mysqls.{Service, ServiceColumn}
 import org.apache.s2graph.core.tinkerpop.process.S2GraphStepStrategy
 import org.apache.s2graph.core.utils.logger
-import org.apache.s2graph.core.{GraphUtil, Management}
+import org.apache.s2graph.core.{Step, Query, GraphUtil, Management}
 import org.apache.tinkerpop.gremlin.process.traversal.TraversalStrategies
 import org.apache.tinkerpop.gremlin.process.traversal.util.DefaultTraversalStrategies
-import org.apache.tinkerpop.gremlin.tinkergraph.process.traversal.strategy.optimization.TinkerGraphStepStrategy
 import play.api.libs.json.{JsValue, Json, JsString}
-
-//import org.apache.s2graph.core.tinkerpop.process.S2GraphStepStrategy
 import org.apache.tinkerpop.gremlin.process.computer.GraphComputer
-//import org.apache.tinkerpop.gremlin.process.traversal.TraversalStrategies
 import org.apache.tinkerpop.gremlin.structure.Graph.{Exceptions, Features, Variables}
 import org.apache.tinkerpop.gremlin.structure.VertexProperty.Cardinality
 import org.apache.tinkerpop.gremlin.structure.{Edge, Graph, Transaction, Vertex}
@@ -68,12 +64,12 @@ object S2Graph {
   def toS2Graph(graph: core.Graph): S2Graph =
     new S2Graph(fromConfig(graph.config))
 
-  def toS2Vertex(s2Graph: S2Graph, vertex: core.Vertex): S2Vertex = {
+  def toS2Vertex(s2Graph: S2Graph, vertex: core.Vertex): Vertex = {
     new S2Vertex(s2Graph, vertex, DefaultVertexLabel)
   }
 
-  def toS2Edge(s2Graph: S2Graph, edge: core.Edge, label: String): S2Edge = {
-    new S2Edge(s2Graph, edge, label)
+  def toS2Edge(s2Graph: S2Graph, edge: core.Edge): Edge = {
+    new S2Edge(s2Graph, edge)
   }
 
   def toVertexLabel(serviceName: String, columnName: String): String =
@@ -101,51 +97,76 @@ class S2Graph(val configuration: Configuration) extends Graph {
   val threadPool = Executors.newFixedThreadPool(numOfThread)
   implicit val ec = ExecutionContext.fromExecutor(threadPool)
 
-  val WriteRPCTimeOut = 1000
+  val ReadRpcTimeout = Duration(1000, TimeUnit.MILLISECONDS)
+  val WriteRPCTimeOut = Duration(1000, TimeUnit.MILLISECONDS)
 
 
 
   val client = new core.Graph(S2Graph.toConfig(configuration))(ec)
 
-  /** this looks problematic when underlying graph is large */
-  override def vertices(objects: AnyRef*): util.Iterator[Vertex] = Nil.iterator
+  def throwEx(props: Map[String, JsValue])(key: String) = throw new RuntimeException(s"$key is not provided. $props")
+  def throwEx(msg: String) = throw new RuntimeException("msg")
 
-  /** this looks problematic when underlying graph is large */
-  override def edges(edgeIds: AnyRef*): util.Iterator[Edge] = Nil.iterator
+  override def vertices(vertexIds: AnyRef*): util.Iterator[Vertex] = {
+
+    if (vertexIds.isEmpty)
+      throwEx(s"provide list of (serviceName, columnName, id).")
+
+    if (vertexIds.size % 3 != 0)
+      throwEx(s"vertexIds should be composite of serviceName, columnName, id")
+
+    val coreVertices = for {
+      idx <- (0 until vertexIds.size by 3)
+    } yield {
+      val serviceName = vertexIds(idx).toString
+      val columnName = vertexIds(idx + 1).toString
+      val id = vertexIds(idx + 2).toString
+      val service = Service.findByName(serviceName).getOrElse(throwEx(s"$serviceName is not found."))
+      val serviceColumn = ServiceColumn.find(service.id.get, columnName).getOrElse(throwEx(s"$columnName is not found."))
+      Management.toVertexWithServiceColumn(serviceColumn)(id)()
+    }
+    coreVertices.map(toS2Vertex(_)).iterator
+  }
+
+  override def edges(labels: AnyRef*): util.Iterator[Edge] = {
+    Nil.iterator
+  }
 
   override def tx(): Transaction = throw Exceptions.transactionsNotSupported()
 
   override def variables(): Variables = ???
 
-  def toS2Vertex(vertex: core.Vertex): S2Vertex =
+  def toS2Vertex(vertex: core.Vertex): Vertex =
     new S2Vertex(this, vertex, DefaultVertexLabel)
 
-  def toS2Edge(edge: core.Edge, label: String): S2Edge =
-    new S2Edge(this, edge, label)
+  def toS2Edge(edge: core.Edge): Edge =
+    new S2Edge(this, edge)
 
-  /** TODO: consider reasonable fallback */
 
-  override def addVertex(objects: AnyRef*): Vertex = {
+
+  def toCoreVertex(objects: AnyRef*): core.Vertex = {
     val props = Management.toPropsJson(objects)
     logger.debug(s"[S2Graph#ParsedProps]: $props")
 
-    def throwEx(key: String) = throw new RuntimeException(s"$key is not provided. $props")
+    val ex = throwEx(props) _
 
     import GraphUtil._
-    val id = toVertexId(props).getOrElse(throwEx("key / id"))
-    val serviceName = props.get("serviceName").map(jsValueToStr(_)).getOrElse(throwEx("serviceName"))
-    val columnName = props.get("columnName").map(jsValueToStr(_)).getOrElse(throwEx("columnName"))
-    val service = Service.findByName(serviceName).getOrElse(throwEx("service"))
-    val serviceColumn = ServiceColumn.find(service.id.get, columnName).getOrElse(throwEx("serviceColumn"))
+    val id = toVertexId(props).getOrElse(ex("key / id"))
+    val serviceName = props.get("serviceName").map(jsValueToStr(_)).getOrElse(ex("serviceName"))
+    val columnName = props.get("columnName").map(jsValueToStr(_)).getOrElse(ex("columnName"))
+    val service = Service.findByName(serviceName).getOrElse(ex("service"))
+    val serviceColumn = ServiceColumn.find(service.id.get, columnName).getOrElse(ex("serviceColumn"))
 
-    val vertex = Management.toVertexWithServiceColumn(serviceColumn)(id)(props.toSeq: _*)
+    Management.toVertexWithServiceColumn(serviceColumn)(id)(props.toSeq: _*)
+  }
 
-
-    val future = client.mutateVertices(Seq(vertex), withWait = true).map { rets =>
-      if (rets.forall(identity)) toS2Vertex(vertex)
+  override def addVertex(objects: AnyRef*): Vertex = {
+    val coreVertex = toCoreVertex(objects: _*)
+    val future = client.mutateVertices(Seq(coreVertex), withWait = true).map { rets =>
+      if (rets.forall(identity)) toS2Vertex(coreVertex)
       else throw new RuntimeException("mutate vertex into storage failed.")
     }
-    Await.result(future, Duration(WriteRPCTimeOut, TimeUnit.MILLISECONDS))
+    Await.result(future, WriteRPCTimeOut)
   }
 
   override def close(): Unit = client.shutdown()
@@ -177,6 +198,10 @@ class S2Graph(val configuration: Configuration) extends Graph {
 
   class S2GraphVertexFeature extends Features.VertexFeatures {
 
+    override def supportsUuidIds(): Boolean = false
+
+    override def supportsCustomIds(): Boolean = true
+
     override def supportsAddVertices(): Boolean = true
 
     override def supportsRemoveVertices(): Boolean = true
@@ -192,6 +217,10 @@ class S2Graph(val configuration: Configuration) extends Graph {
   }
 
   class S2GraphEdgeFeature extends Features.EdgeFeatures {
+
+    override def supportsUuidIds(): Boolean = false
+
+    override def supportsCustomIds(): Boolean = true
 
     override def supportsRemoveEdges(): Boolean = true
 

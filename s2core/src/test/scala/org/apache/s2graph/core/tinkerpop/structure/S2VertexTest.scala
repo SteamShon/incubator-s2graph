@@ -49,7 +49,7 @@ class S2VertexTest extends FunSuite with Matchers with TestCommonWithModels {
 //    val coreVertex =
       Management.toVertexWithServiceColumn(serviceColumn)("102")() // WrappedArray
 
-    val s2Vertex = s2graph.toS2Vertex(coreVertex)
+    val s2Vertex = s2graph.toS2Vertex(coreVertex).asInstanceOf[S2Vertex]
 
     s2Vertex.id() should be(coreVertex.id)
     s2Vertex.vertex should be(coreVertex)

@@ -35,7 +35,7 @@ trait JSONParser {
         case InnerVal.BOOLEAN => JsBoolean(innerVal.value.asInstanceOf[Boolean])
         case InnerVal.BYTE | InnerVal.SHORT | InnerVal.INT | InnerVal.LONG | InnerVal.FLOAT | InnerVal.DOUBLE =>
           //        case t if InnerVal.NUMERICS.contains(t) =>
-          logger.debug(s"InnerVal: ${innerVal.value.getClass.getName}")
+//          logger.debug(s"InnerVal: ${innerVal.value.getClass.getName}")
           innerVal.value match {
             case l: Long => JsNumber(l)
             case i: Int => JsNumber(i)
@@ -110,7 +110,8 @@ trait JSONParser {
 
   def toInnerVal(str: String, dataType: String, version: String): InnerValLike = {
     //TODO:
-//            logger.error(s"toInnerVal: $str, $dataType, $version")
+//    logger.error(s"toInnerVal: $str, $dataType, $version")
+
     val s =
       if (str.startsWith("\"") && str.endsWith("\"")) str.substring(1, str.length - 1)
       else str

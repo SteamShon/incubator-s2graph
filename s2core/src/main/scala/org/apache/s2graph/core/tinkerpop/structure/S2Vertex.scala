@@ -3,38 +3,55 @@ package org.apache.s2graph.core.tinkerpop.structure
 
 import org.apache.s2graph._
 import org.apache.s2graph.core.mysqls.Label
-import org.apache.s2graph.core.{GraphUtil, Management}
+import org.apache.s2graph.core._
+import org.apache.s2graph.core.types.LabelWithDirection
+import org.apache.tinkerpop.gremlin.structure.Edge
+import org.apache.tinkerpop.gremlin.structure.Vertex
 import org.apache.tinkerpop.gremlin.structure.VertexProperty.Cardinality
 import org.apache.tinkerpop.gremlin.structure._
-import org.apache.tinkerpop.gremlin.structure.util.ElementHelper
-import scala.collection.mutable
 import scala.concurrent.Await
-import scala.concurrent.duration.Duration
-import scala.collection.JavaConversions._
 import java.util
-import java.util.concurrent.TimeUnit
-
+import scala.collection.JavaConversions._
 
 class S2Vertex(val graph: S2Graph,
                val vertex: core.Vertex,
                val label: String) extends Vertex {
 
-  val columnMetas = vertex.serviceColumn.metasInvMap
+  override def vertices(direction: Direction, labels: String*): util.Iterator[Vertex] = {
+    val ls = this.edges(direction, labels: _*).flatMap { edges =>
+      direction match {
+        case Direction.OUT => Seq(edges.outVertex())
+        case Direction.IN => Seq(edges.inVertex())
+        case _ => Seq(edges.outVertex(), edges.inVertex())
+      }
+    }
+    ls.toIterator
+  }
 
-  override def vertices(direction: Direction, strings: String*): util.Iterator[Vertex] = ???
+  override def edges(direction: Direction, labels: String*): util.Iterator[Edge] = {
+    val queryParams = labels.map { label =>
+      Label.findByName(label).map(l => QueryParam(labelWithDir = LabelWithDirection(l.id.get, 0)))
+    }.flatten
 
-  override def edges(direction: Direction, strings: String*): util.Iterator[Edge] = ???
+    val steps = Vector(Step(queryParams = queryParams.toList))
+    val query = Query(vertices = Seq(vertex), steps = steps, queryOption = QueryOption())
+
+    val future = graph.client.getEdges(query)
+    val fetched = Await.result(future, graph.ReadRpcTimeout)
+    val edges = fetched.flatMap { ls =>
+
+      ls.queryResult.edgeWithScoreLs.map { edgeWithScore =>
+        val edge = graph.toS2Edge(edgeWithScore.edge)
+        edge
+      }
+    }
+    edges.iterator
+  }
 
   override def property[V](cardinality: Cardinality,
                            key: String,
                            value: V,
                            kvs: AnyRef*): VertexProperty[V] = ???
-//  {
-//    columnMetas.get(key) match {
-//      case None => throw new RuntimeException(s"$vertex does not have $key meta on DB. create it first.")
-//      case Some(columnMeta) => super.property(cardinality, key, value, kvs)
-//    }
-//  }
 
 
   override def addEdge(labelName: String, tgtVertex: Vertex, kvs: AnyRef*): Edge = {
@@ -55,15 +72,13 @@ class S2Vertex(val graph: S2Graph,
     val edge = Management.toEdgeWithLabel(edgeLabel)(allEdgeProps.toSeq: _*)
 
     val future = graph.client.mutateEdges(Seq(edge), withWait = true).map { rets =>
-      if (rets.forall(identity)) graph.toS2Edge(edge, labelName)
+      if (rets.forall(identity)) graph.toS2Edge(edge)
       else throw new RuntimeException("addEdge to storage failed.")
     }(graph.ec)
-    Await.result(future, Duration(graph.WriteRPCTimeOut, TimeUnit.MILLISECONDS))
+    Await.result(future, graph.WriteRPCTimeOut)
   }
 
   override def properties[V](keys: String*): util.Iterator[VertexProperty[V]] = ???
-//    super.properties(keys.filter(k => columnMetas.containsKey(k)) : _*)
-
 
   override def remove(): Unit = ???
 

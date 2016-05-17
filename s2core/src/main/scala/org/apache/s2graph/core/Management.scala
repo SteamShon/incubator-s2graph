@@ -193,6 +193,8 @@ object Management extends JSONParser {
   def EmptyPropKeyValues = new RuntimeException("empty property key value provided.")
 
   def toPropsJson(kvs: AnyRef*): Map[String, JsValue] = {
+    if (kvs.isEmpty) return Map.empty
+
     val fallback = Seq.empty[(String, Any)]
     val ret = new mutable.HashMap[String, Any]()
     val keys = new mutable.ListBuffer[String]()
@@ -315,7 +317,7 @@ object Management extends JSONParser {
 
   /** only used for tinkerPop */
   def toVertexWithServiceColumn(serviceColumn: ServiceColumn)(vertexId: String)(kvs: Any*): Vertex = {
-    val props = toPropsJson(kvs)
+    val props = if (kvs.size == 0) Map.empty[String, JsValue] else toPropsJson(kvs)
     val ts = props.get("timestamp").map(_.toString.toLong).getOrElse(System.currentTimeMillis())
     val operation = props.get("op").map(jsValueToStr(_)).getOrElse("insert")
 
