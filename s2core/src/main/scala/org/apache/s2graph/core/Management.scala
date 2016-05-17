@@ -314,21 +314,15 @@ object Management extends JSONParser {
   }
 
   /** only used for tinkerPop */
-  def toVertexWithServiceColumn(serviceColumn: ServiceColumn)(kvs: Any*): Vertex = {
+  def toVertexWithServiceColumn(serviceColumn: ServiceColumn)(vertexId: String)(kvs: Any*): Vertex = {
     val props = toPropsJson(kvs)
-    val vertexOpt = for {
-      id <- props.get("id").map(jsValueToStr(_))
-    } yield {
-        val ts = props.get("timestamp").map(_.toString.toLong).getOrElse(System.currentTimeMillis())
-        val operation = props.get("op").map(jsValueToStr(_)).getOrElse("insert")
+    val ts = props.get("timestamp").map(_.toString.toLong).getOrElse(System.currentTimeMillis())
+    val operation = props.get("op").map(jsValueToStr(_)).getOrElse("insert")
 
-        val idVal = toInnerVal(id, serviceColumn.columnType, serviceColumn.schemaVersion)
-        val op = tryOption(operation, GraphUtil.toOp)
-        val parsedProps = toProps(serviceColumn, props.toSeq).toMap
-        Vertex(VertexId(serviceColumn.id.get, idVal), ts, parsedProps, op = op)
-      }
-
-    vertexOpt.getOrElse(throw new RuntimeException("not all necessary data is provided."))
+    val idVal = toInnerVal(vertexId, serviceColumn.columnType, serviceColumn.schemaVersion)
+    val op = tryOption(operation, GraphUtil.toOp)
+    val parsedProps = toProps(serviceColumn, props.toSeq).toMap
+    Vertex(VertexId(serviceColumn.id.get, idVal), ts, parsedProps, op = op)
   }
 
   def toVertex(ts: Long, operation: String, id: String, serviceName: String, columnName: String, props: String): Vertex = {

@@ -44,19 +44,14 @@ class S2VertexTest extends FunSuite with Matchers with TestCommonWithModels {
     // note that column has long type for user_id
     val params = ElementHelper.asMap("id", java.lang.Long.valueOf(101L)).toSeq
     val coreVertex =
-      Management.toVertexWithServiceColumn(serviceColumn)(params: _*)
+      Management.toVertexWithServiceColumn(serviceColumn)("101")(params: _*)
 
 //    val coreVertex =
-      Management.toVertexWithServiceColumn(serviceColumn)("id", java.lang.Long.valueOf(101L)) // WrappedArray
+      Management.toVertexWithServiceColumn(serviceColumn)("102")() // WrappedArray
 
     val s2Vertex = s2graph.toS2Vertex(coreVertex)
 
     s2Vertex.id() should be(coreVertex.id)
     s2Vertex.vertex should be(coreVertex)
-
-    val coreEdge = Management.toEdgeWithLabel(_label)("from", "shon", "to", "jojo")
-    val s2Edge = s2graph.toS2Edge(coreEdge, label.label)
-    s2Edge.id() should be(coreEdge.id)
-
   }
 }

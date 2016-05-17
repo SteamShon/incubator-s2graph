@@ -22,6 +22,7 @@ package org.apache.s2graph.core
 import com.typesafe.config.{Config, ConfigFactory}
 import org.apache.s2graph.core.Management.JsonModel.{Index, Prop}
 import org.apache.s2graph.core.mysqls.{Label, LabelIndex, Service, ServiceColumn}
+import org.apache.s2graph.core.rest.RequestParser
 import org.apache.s2graph.core.types.{InnerVal, LabelWithDirection}
 import scalikejdbc.AutoSession
 
@@ -37,12 +38,13 @@ trait TestCommonWithModels {
   var graph: Graph = _
   var config: Config = _
   var management: Management = _
+  var parser: RequestParser = _
 
   def initTests(): Unit = {
     config = ConfigFactory.load()
     graph = new Graph(config)(ec)
     management = new Management(graph)
-
+    parser = new RequestParser(config)
     implicit val session = AutoSession
 
     deleteTestLabel()

@@ -28,12 +28,13 @@ class S2Vertex(val graph: S2Graph,
   override def property[V](cardinality: Cardinality,
                            key: String,
                            value: V,
-                           kvs: AnyRef*): VertexProperty[V] = {
-    columnMetas.get(key) match {
-      case None => throw new RuntimeException(s"$vertex does not have $key meta on DB. create it first.")
-      case Some(columnMeta) => super.property(cardinality, key, value, kvs)
-    }
-  }
+                           kvs: AnyRef*): VertexProperty[V] = ???
+//  {
+//    columnMetas.get(key) match {
+//      case None => throw new RuntimeException(s"$vertex does not have $key meta on DB. create it first.")
+//      case Some(columnMeta) => super.property(cardinality, key, value, kvs)
+//    }
+//  }
 
 
   override def addEdge(labelName: String, tgtVertex: Vertex, kvs: AnyRef*): Edge = {
@@ -60,8 +61,8 @@ class S2Vertex(val graph: S2Graph,
     Await.result(future, Duration(graph.WriteRPCTimeOut, TimeUnit.MILLISECONDS))
   }
 
-  override def properties[V](keys: String*): util.Iterator[VertexProperty[V]] =
-    super.properties(keys.filter(k => columnMetas.containsKey(k)) : _*)
+  override def properties[V](keys: String*): util.Iterator[VertexProperty[V]] = ???
+//    super.properties(keys.filter(k => columnMetas.containsKey(k)) : _*)
 
 
   override def remove(): Unit = ???

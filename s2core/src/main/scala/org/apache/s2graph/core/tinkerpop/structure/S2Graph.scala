@@ -2,6 +2,7 @@ package org.apache.s2graph.core.tinkerpop.structure
 
 
 import org.apache.s2graph.core
+import org.apache.s2graph.core.GraphUtil._
 import org.apache.s2graph.core.mysqls.{Service, ServiceColumn}
 import org.apache.s2graph.core.tinkerpop.process.S2GraphStepStrategy
 import org.apache.s2graph.core.utils.logger
@@ -9,7 +10,7 @@ import org.apache.s2graph.core.{GraphUtil, Management}
 import org.apache.tinkerpop.gremlin.process.traversal.TraversalStrategies
 import org.apache.tinkerpop.gremlin.process.traversal.util.DefaultTraversalStrategies
 import org.apache.tinkerpop.gremlin.tinkergraph.process.traversal.strategy.optimization.TinkerGraphStepStrategy
-import play.api.libs.json.{Json, JsString}
+import play.api.libs.json.{JsValue, Json, JsString}
 
 //import org.apache.s2graph.core.tinkerpop.process.S2GraphStepStrategy
 import org.apache.tinkerpop.gremlin.process.computer.GraphComputer
@@ -74,6 +75,23 @@ object S2Graph {
   def toS2Edge(s2Graph: S2Graph, edge: core.Edge, label: String): S2Edge = {
     new S2Edge(s2Graph, edge, label)
   }
+
+  def toVertexLabel(serviceName: String, columnName: String): String =
+    Seq(serviceName, columnName).mkString(",")
+
+  def fromVertexLabel(vertexLabel: String): (String, String) = {
+    val t = vertexLabel.split(",")
+    assert(t.length == 2)
+    (t.head, t.last)
+  }
+
+  def toVertexId(props: Map[String, JsValue]): Option[String] = {
+    (props.get("key"), props.get("id")) match {
+      case (Some(k), _) => Option(jsValueToStr(k))
+      case (_, Some(id)) => Option(jsValueToStr(id))
+      case _ => None
+    }
+  }
 }
 class S2Graph(val configuration: Configuration) extends Graph {
 
@@ -106,22 +124,23 @@ class S2Graph(val configuration: Configuration) extends Graph {
     new S2Edge(this, edge, label)
 
   /** TODO: consider reasonable fallback */
+
   override def addVertex(objects: AnyRef*): Vertex = {
     val props = Management.toPropsJson(objects)
     logger.debug(s"[S2Graph#ParsedProps]: $props")
 
+    def throwEx(key: String) = throw new RuntimeException(s"$key is not provided. $props")
+
     import GraphUtil._
+    val id = toVertexId(props).getOrElse(throwEx("key / id"))
+    val serviceName = props.get("serviceName").map(jsValueToStr(_)).getOrElse(throwEx("serviceName"))
+    val columnName = props.get("columnName").map(jsValueToStr(_)).getOrElse(throwEx("columnName"))
+    val service = Service.findByName(serviceName).getOrElse(throwEx("service"))
+    val serviceColumn = ServiceColumn.find(service.id.get, columnName).getOrElse(throwEx("serviceColumn"))
 
-    val vertexOpt = for {
-      id <- props.get("id").map(jsValueToStr(_))
-      serviceName <- props.get("serviceName").map(jsValueToStr(_))
-      columnName <- props.get("columnName").map(jsValueToStr(_))
-      service <- Service.findByName(serviceName)
-      serviceColumn <- ServiceColumn.find(service.id.get, columnName)
-    } yield Management.toVertexWithServiceColumn(serviceColumn)(props.toSeq: _*)
+    val vertex = Management.toVertexWithServiceColumn(serviceColumn)(id)(props.toSeq: _*)
 
 
-    val vertex = vertexOpt.getOrElse(throw new RuntimeException("not all necessary data is provided."))
     val future = client.mutateVertices(Seq(vertex), withWait = true).map { rets =>
       if (rets.forall(identity)) toS2Vertex(vertex)
       else throw new RuntimeException("mutate vertex into storage failed.")
