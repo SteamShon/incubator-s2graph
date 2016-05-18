@@ -19,7 +19,6 @@
 
 package org.apache.s2graph.loader.subscriber
 
-import org.apache.hadoop.hbase.client.Put
 import org.apache.hadoop.hbase.io.compress.Compression.Algorithm
 import org.apache.hadoop.hbase.io.encoding.DataBlockEncoding
 import org.apache.hadoop.hbase.mapreduce.{TableOutputFormat}
@@ -38,7 +37,8 @@ import play.api.libs.json.Json
 import scala.collection.JavaConversions._
 
 
-object TransferToHFile extends SparkApp with JSONParser {
+object TransferToHFile extends SparkApp {
+  import JSONParser._
 
   val usages =
     s"""

@@ -19,13 +19,10 @@
 
 package org.apache.s2graph.core.mysqls
 
-/**
- * Created by shon on 6/3/15.
- */
 
-import org.apache.s2graph.core.JSONParser
 import play.api.libs.json.Json
 import scalikejdbc._
+
 object ServiceColumn extends Model[ServiceColumn] {
 
   def apply(rs: WrappedResultSet): ServiceColumn = {
@@ -89,7 +86,10 @@ object ServiceColumn extends Model[ServiceColumn] {
     })
   }
 }
-case class ServiceColumn(id: Option[Int], serviceId: Int, columnName: String, columnType: String, schemaVersion: String) extends JSONParser {
+case class ServiceColumn(id: Option[Int],
+                         serviceId: Int,
+                         columnName: String,
+                         columnType: String, schemaVersion: String) {
 
   lazy val service = Service.findById(serviceId)
   lazy val metas = ColumnMeta.findAllByColumn(id.get)

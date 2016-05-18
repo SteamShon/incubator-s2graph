@@ -26,9 +26,10 @@ package org.apache.s2graph.core.mysqls
 import org.apache.s2graph.core.GraphExceptions.MaxPropSizeReachedException
 import org.apache.s2graph.core.{GraphExceptions, JSONParser}
 import play.api.libs.json.Json
+import JSONParser._
 import scalikejdbc._
 
-object LabelMeta extends Model[LabelMeta] with JSONParser {
+object LabelMeta extends Model[LabelMeta] {
 
   /** dummy sequences */
 

@@ -20,7 +20,6 @@
 package org.apache.s2graph.core
 
 object GraphExceptions {
-
   case class JsonParseException(msg: String) extends Exception(msg)
 
   case class LabelNotExistException(msg: String) extends Exception(msg)

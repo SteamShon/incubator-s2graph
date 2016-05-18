@@ -20,7 +20,6 @@
 package org.apache.s2graph.core.rest
 
 import java.util.concurrent.{Callable, TimeUnit}
-
 import com.google.common.cache.CacheBuilder
 import com.typesafe.config.Config
 import org.apache.s2graph.core.GraphExceptions.{BadQueryException, ModelNotFoundException}
@@ -29,7 +28,7 @@ import org.apache.s2graph.core.mysqls._
 import org.apache.s2graph.core.parsers.{Where, WhereParser}
 import org.apache.s2graph.core.types._
 import play.api.libs.json._
-
+import JSONParser._
 import scala.util.{Failure, Success, Try}
 
 object TemplateHelper {
@@ -71,7 +70,7 @@ object TemplateHelper {
   }
 }
 
-class RequestParser(config: Config) extends JSONParser {
+class RequestParser(config: Config) {
 
   import Management.JsonModel._
 
@@ -90,23 +89,34 @@ class RequestParser(config: Config) extends JSONParser {
     .initialCapacity(1000)
     .build[String, Try[Where]]
 
-  private def extractScoring(labelId: Int, value: JsValue) = {
-    val ret = for {
-      js <- parse[Option[JsObject]](value, "scoring")
+  private def extractScoring(value: JsValue): Map[String, Double] = {
+    val jsObj = (value \ "scoring").asOpt[JsObject].getOrElse(Json.obj())
+    val weights = for {
+      (k, v) <- jsObj.fieldSet
     } yield {
-      for {
-        (k, v) <- js.fields
-        labelOrderType <- LabelMeta.findByName(labelId, k)
-      } yield {
-        val value = v match {
-          case n: JsNumber => n.as[Double]
-          case _ => throw new Exception("scoring weight should be double.")
-        }
-        (labelOrderType.seq, value)
-      }
+      val weight = v.asOpt[Double].getOrElse(1.0)
+      k -> weight
     }
-    ret
+    weights.toMap
   }
+
+//  private def extractScoring(labelId: Int, value: JsValue) = {
+//    val ret = for {
+//      js <- parse[Option[JsObject]](value, "scoring")
+//    } yield {
+//      for {
+//        (k, v) <- js.fields
+//        labelOrderType <- LabelMeta.findByName(labelId, k)
+//      } yield {
+//        val value = v match {
+//          case n: JsNumber => n.as[Double]
+//          case _ => throw new Exception("scoring weight should be double.")
+//        }
+//        (labelOrderType.seq, value)
+//      }
+//    }
+//    ret
+//  }
 
   def extractInterval(label: Label, _jsValue: JsValue) = {
     val replaced = TemplateHelper.replaceVariable(System.currentTimeMillis(), _jsValue.toString())
@@ -362,14 +372,16 @@ class RequestParser(config: Config) extends JSONParser {
       val offset = parse[Option[Int]](labelGroup, "offset").getOrElse(0)
       val interval = extractInterval(label, labelGroup)
       val duration = extractDuration(label, labelGroup)
-      val scoring = extractScoring(label.id.get, labelGroup).getOrElse(List.empty[(Byte, Double)]).toList
+      val scoring = extractScoring(labelGroup)
       val exclude = parse[Option[Boolean]](labelGroup, "exclude").getOrElse(false)
       val include = parse[Option[Boolean]](labelGroup, "include").getOrElse(false)
       val hasFilter = extractHas(label, labelGroup)
       val labelWithDir = LabelWithDirection(label.id.get, direction)
       val indexNameOpt = (labelGroup \ "index").asOpt[String]
+
+      /** TODO: infer index from scoring should be implemented. */
       val indexSeq = indexNameOpt match {
-        case None => label.indexSeqsMap.get(scoring.map(kv => kv._1)).map(_.seq).getOrElse(LabelIndex.DefaultSeq)
+        case None => LabelIndex.DefaultSeq
         case Some(indexName) => label.indexNameMap.get(indexName).map(_.seq).getOrElse(throw new RuntimeException("cannot find index"))
       }
       val whereClauseOpt = (labelGroup \ "where").asOpt[String]
@@ -405,7 +417,7 @@ class RequestParser(config: Config) extends JSONParser {
       QueryParam(labelWithDir)
         .sample(sample)
         .limit(offset, limit)
-        .rank(RankParam(label.id.get, scoring))
+        .rank(RankParam(label, scoring))
         .exclude(exclude)
         .include(include)
         .duration(duration)

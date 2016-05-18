@@ -262,23 +262,36 @@ case class VertexParam(vertices: Seq[Vertex]) {
 //  }
 //}
 
-case class RankParam(labelId: Int, var keySeqAndWeights: Seq[(Byte, Double)] = Seq.empty[(Byte, Double)]) {
-  // empty => Count
-  lazy val rankKeysWeightsMap = keySeqAndWeights.toMap
 
-  def defaultKey() = {
-    this.keySeqAndWeights = List((LabelMeta.countSeq, 1.0))
-    this
-  }
-
+case class RankParam(label: Label,
+                      propertyKeyWeights: Map[String, Double] = Map(LabelMeta.count.name -> 1.0)) {
   def toHashKeyBytes(): Array[Byte] = {
     var bytes = Array.empty[Byte]
-    keySeqAndWeights.map { case (key, weight) =>
-      bytes = Bytes.add(bytes, Array.fill(1)(key), Bytes.toBytes(weight))
+    propertyKeyWeights.map { case (key, weight) =>
+      bytes = Bytes.add(bytes, Bytes.toBytes(key), Bytes.toBytes(weight))
     }
     bytes
   }
 }
+
+//case class RankParam(labelId: Int,
+//                     var keySeqAndWeights: Seq[(Byte, Double)] = Seq.empty[(Byte, Double)]) {
+//  // empty => Count
+//  lazy val rankKeysWeightsMap = keySeqAndWeights.toMap
+//
+//  def defaultKey() = {
+//    this.keySeqAndWeights = List((LabelMeta.countSeq, 1.0))
+//    this
+//  }
+//
+//  def toHashKeyBytes(): Array[Byte] = {
+//    var bytes = Array.empty[Byte]
+//    keySeqAndWeights.map { case (key, weight) =>
+//      bytes = Bytes.add(bytes, Array.fill(1)(key), Bytes.toBytes(weight))
+//    }
+//    bytes
+//  }
+//}
 
 object QueryParam {
   lazy val Empty = QueryParam(LabelWithDirection(0, 0))

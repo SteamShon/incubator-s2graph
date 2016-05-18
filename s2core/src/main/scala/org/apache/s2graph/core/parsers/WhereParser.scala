@@ -23,12 +23,11 @@ import org.apache.s2graph.core.GraphExceptions.WhereParserException
 import org.apache.s2graph.core.mysqls.{Label, LabelMeta}
 import org.apache.s2graph.core.types.InnerValLike
 import org.apache.s2graph.core.{Edge, GraphExceptions, JSONParser}
-
 import scala.annotation.tailrec
 import scala.util.Try
 import scala.util.parsing.combinator.JavaTokenParsers
-
-trait ExtractValue extends JSONParser {
+import JSONParser._
+trait ExtractValue {
   val parent = "_parent."
 
   def propToInnerVal(edge: Edge, key: String) = {
@@ -168,7 +167,7 @@ object WhereParser {
   val success = Where()
 }
 
-case class WhereParser(label: Label) extends JavaTokenParsers with JSONParser {
+case class WhereParser(label: Label) extends JavaTokenParsers {
 
   val anyStr = "[^\\s(),]+".r
 

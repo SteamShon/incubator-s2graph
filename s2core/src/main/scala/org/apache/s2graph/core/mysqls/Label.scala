@@ -21,9 +21,11 @@ package org.apache.s2graph.core.mysqls
 
 import org.apache.s2graph.core.GraphExceptions.ModelNotFoundException
 import org.apache.s2graph.core.Management.JsonModel.{Index, Prop}
+import org.apache.s2graph.core.types.{InnerValLike, InnerValLikeWithTs}
 import org.apache.s2graph.core.utils.logger
 import org.apache.s2graph.core.{GraphExceptions, GraphUtil, JSONParser}
 import play.api.libs.json.Json
+import JSONParser._
 import scalikejdbc._
 
 object Label extends Model[Label] {
@@ -262,7 +264,7 @@ case class Label(id: Option[Int], label: String,
                  isDirected: Boolean = true, serviceName: String, serviceId: Int, consistencyLevel: String = "strong",
                  hTableName: String, hTableTTL: Option[Int],
                  schemaVersion: String, isAsync: Boolean = false,
-                 compressionAlgorithm: String) extends JSONParser {
+                 compressionAlgorithm: String)  {
   def metas = LabelMeta.findAllByLabelId(id.get)
 
   def metaSeqsToNames = metas.map(x => (x.seq, x.name)) toMap
@@ -386,6 +388,52 @@ case class Label(id: Option[Int], label: String,
     "metaProps" -> metaProps.filter { labelMeta => LabelMeta.isValidSeqForAdmin(labelMeta.seq) }.map(_.toJson)
   )
 
+  def toProperties(props: Map[String, Any]): Map[Byte, InnerValLike] = {
+    for {
+      (k, v) <- props
+      labelMeta <- metaPropsInvMap.get(k)
+      innerVal = toInnerVal(v.toString, labelMeta.dataType, schemaVersion)
+    } yield labelMeta.seq -> innerVal
+  }
 
+  def toPropertiesWithTs(props: Map[String, Any],
+                         ts: Long = System.currentTimeMillis()): Map[Byte, InnerValLikeWithTs] =
+    toProperties(props).map(kv => kv._1 -> InnerValLikeWithTs(kv._2, ts))
+
+  def fromProperties(props: Map[Byte, InnerValLike]): Map[String, Any] = {
+    for {
+      (k, v) <- props
+      labelMeta <- metaPropsMap.get(k)
+    } yield {
+      labelMeta.name -> v.value
+    }
+  }
+
+  def fromPropertiesWithTs(props: Map[Byte, InnerValLikeWithTs]): Map[String, Any] = {
+    for {
+      (k, v) <- props
+      labelMeta <- metaPropsMap.get(k)
+    } yield {
+      labelMeta.name -> v.innerVal.value
+    }
+  }
+
+//  def fromProperties(props: Map[Byte, InnerValLike]): Map[String, Any] = {
+//    for {
+//      (k, v) <- props
+//      labelMeta <- metaPropsMap.get(k)
+//    } yield {
+//      labelMeta.name -> v.value
+//    }
+//  }
+//
+//  def fromPropertiesWithTs(props: Map[Byte, InnerValLikeWithTs]): Map[String, Any] = {
+//    for {
+//      (k, v) <- props
+//      labelMeta <- metaPropsMap.get(k)
+//    } yield {
+//      labelMeta.name -> v.innerVal.value
+//    }
+//  }
 }
 

@@ -23,8 +23,10 @@ import org.apache.s2graph.core.types.{InnerVal, InnerValLike}
 import org.apache.s2graph.core.utils.logger
 import play.api.libs.json._
 
+import scala.util.Try
 
-trait JSONParser {
+
+object JSONParser {
 
   //TODO: check result notation on bigDecimal.
   def innerValToJsValue(innerVal: InnerValLike, dataType: String): Option[JsValue] = {
@@ -149,5 +151,33 @@ trait JSONParser {
     }
 
     ret
+  }
+
+  def anyValToJsValue(value: Any): Try[JsValue] = {
+    Try {
+      value match {
+        case null => JsNull
+        case l: Long => JsNumber(l)
+        case i: Int => JsNumber(i)
+        case s: Short => JsNumber(s.toInt)
+        case b: Byte => JsNumber(b.toInt)
+        case f: Float => JsNumber(f.toDouble)
+        case d: Double => JsNumber(d)
+        case bd: BigDecimal => JsNumber(bd)
+        case s: String => JsString(s)
+        case b: Boolean => JsBoolean(b)
+        case _ => throw new RuntimeException(s"$value, ${value.getClass.getName} is not supported data type.")
+      }
+    }
+  }
+  def propertiesToJson(props: Map[String, Any]): Map[String, JsValue] = {
+    for {
+      (k, v) <- props
+      jsValue <- anyValToJsValue(v)
+//      labelMeta <- label.metaPropsInvMap.get(k)
+//      innerVal = toInnerVal(v.toString, labelMeta.dataType, labelMeta.)
+    } yield {
+      k -> jsValue
+    }
   }
 }
