@@ -19,12 +19,13 @@
 
 package org.apache.s2graph.core
 
+import org.apache.s2graph.core.mysqls.Label
 import org.apache.s2graph.core.types.{InnerVal, InnerValLike}
 import org.apache.s2graph.core.utils.logger
 import play.api.libs.json._
 
 
-trait JSONParser {
+object JSONParser {
 
   //TODO: check result notation on bigDecimal.
   def innerValToJsValue(innerVal: InnerValLike, dataType: String): Option[JsValue] = {
@@ -149,5 +150,53 @@ trait JSONParser {
     }
 
     ret
+  }
+
+  def anyValToJsValue(value: Any): Option[JsValue] = {
+    try {
+      val v = value match {
+        case null => JsNull
+        case l: Long => JsNumber(l)
+        case i: Int => JsNumber(i)
+        case s: Short => JsNumber(s.toInt)
+        case b: Byte => JsNumber(b.toInt)
+        case f: Float => JsNumber(f.toDouble)
+        case d: Double => JsNumber(d)
+        case bd: BigDecimal => JsNumber(bd.toLong)
+        case s: String => JsString(s)
+        case b: Boolean => JsBoolean(b)
+        case _ => throw new RuntimeException(s"$value, ${value.getClass.getName} is not supported data type.")
+      }
+      Option(v)
+    } catch {
+      case e: Exception =>
+        logger.error(s"$e", e)
+        None
+    }
+  }
+  def propertiesToJson(props: Map[String, Any]): Map[String, JsValue] = {
+    for {
+      (k, v) <- props
+      jsValue <- anyValToJsValue(v)
+    //      labelMeta <- label.metaPropsInvMap.get(k)
+    //      innerVal = toInnerVal(v.toString, labelMeta.dataType, labelMeta.)
+    } yield {
+      k -> jsValue
+    }
+  }
+
+  def jsValueToString(jsValue: JsValue): String = {
+    jsValue match {
+      case s: JsString => s.value
+      case _ => jsValue.toString
+    }
+  }
+  def fromJsonToProperties(jsObject: JsObject): Map[String, Any] = {
+    val kvs = for {
+      (k, v) <- jsObject.fieldSet
+    } yield {
+        k -> jsValueToString(v)
+      }
+    kvs.toMap
   }
 }

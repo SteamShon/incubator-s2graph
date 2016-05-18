@@ -20,7 +20,6 @@
 package org.apache.s2graph.core.rest
 
 import java.util.concurrent.{Callable, TimeUnit}
-
 import com.google.common.cache.CacheBuilder
 import com.typesafe.config.Config
 import org.apache.s2graph.core.GraphExceptions.{BadQueryException, ModelNotFoundException}
@@ -29,8 +28,9 @@ import org.apache.s2graph.core.mysqls._
 import org.apache.s2graph.core.parsers.{Where, WhereParser}
 import org.apache.s2graph.core.types._
 import play.api.libs.json._
-
 import scala.util.{Failure, Success, Try}
+import org.apache.s2graph.core.JSONParser._
+
 
 object TemplateHelper {
   val findVar = """\"?\$\{(.*?)\}\"?""".r
@@ -71,7 +71,7 @@ object TemplateHelper {
   }
 }
 
-class RequestParser(config: Config) extends JSONParser {
+class RequestParser(config: Config) {
 
   import Management.JsonModel._
 

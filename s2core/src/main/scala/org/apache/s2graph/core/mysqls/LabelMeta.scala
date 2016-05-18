@@ -24,11 +24,10 @@ package org.apache.s2graph.core.mysqls
  */
 
 import org.apache.s2graph.core.GraphExceptions.MaxPropSizeReachedException
-import org.apache.s2graph.core.{GraphExceptions, JSONParser}
 import play.api.libs.json.Json
 import scalikejdbc._
 
-object LabelMeta extends Model[LabelMeta] with JSONParser {
+object LabelMeta extends Model[LabelMeta] {
 
   /** dummy sequences */
 
@@ -164,6 +163,6 @@ object LabelMeta extends Model[LabelMeta] with JSONParser {
   }
 }
 
-case class LabelMeta(id: Option[Int], labelId: Int, name: String, seq: Byte, defaultValue: String, dataType: String) extends JSONParser {
+case class LabelMeta(id: Option[Int], labelId: Int, name: String, seq: Byte, defaultValue: String, dataType: String)  {
   lazy val toJson = Json.obj("name" -> name, "defaultValue" -> defaultValue, "dataType" -> dataType)
 }

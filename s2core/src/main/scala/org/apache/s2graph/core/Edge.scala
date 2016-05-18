@@ -23,7 +23,7 @@ import org.apache.s2graph.core.mysqls.{Label, LabelIndex, LabelMeta}
 import org.apache.s2graph.core.types._
 import org.apache.s2graph.core.utils.logger
 import play.api.libs.json.{JsNumber, Json}
-
+import JSONParser._
 import scala.collection.JavaConversions._
 import scala.util.hashing.MurmurHash3
 
@@ -36,7 +36,7 @@ case class SnapshotEdge(srcVertex: Vertex,
                         props: Map[Byte, InnerValLikeWithTs],
                         pendingEdgeOpt: Option[Edge],
                         statusCode: Byte = 0,
-                        lockTs: Option[Long]) extends JSONParser {
+                        lockTs: Option[Long]) {
 
   if (!props.containsKey(LabelMeta.timeStampSeq)) throw new Exception("Timestamp is required.")
 
@@ -70,7 +70,7 @@ case class IndexEdge(srcVertex: Vertex,
                      op: Byte,
                      version: Long,
                      labelIndexSeq: Byte,
-                     props: Map[Byte, InnerValLike]) extends JSONParser {
+                     props: Map[Byte, InnerValLike]) {
   if (!props.containsKey(LabelMeta.timeStampSeq)) throw new Exception("Timestamp is required.")
   //  assert(props.containsKey(LabelMeta.timeStampSeq))
 
@@ -144,7 +144,7 @@ case class Edge(srcVertex: Vertex,
                 originalEdgeOpt: Option[Edge] = None,
                 pendingEdgeOpt: Option[Edge] = None,
                 statusCode: Byte = 0,
-                lockTs: Option[Long] = None) extends GraphElement with JSONParser {
+                lockTs: Option[Long] = None) extends GraphElement {
 
   if (!props.containsKey(LabelMeta.timeStampSeq)) throw new Exception("Timestamp is required.")
   //  assert(propsWithTs.containsKey(LabelMeta.timeStampSeq))
@@ -304,7 +304,7 @@ case class EdgeMutate(edgesToDelete: List[IndexEdge] = List.empty[IndexEdge],
   }
 }
 
-object Edge extends JSONParser {
+object Edge {
   val incrementVersion = 1L
   val minTsVal = 0L
 

@@ -36,9 +36,9 @@ import org.apache.spark.rdd.RDD
 import org.hbase.async.{PutRequest}
 import play.api.libs.json.Json
 import scala.collection.JavaConversions._
+import JSONParser._
 
-
-object TransferToHFile extends SparkApp with JSONParser {
+object TransferToHFile extends SparkApp {
 
   val usages =
     s"""

@@ -20,9 +20,11 @@
 package org.apache.s2graph.core.mysqls
 
 import org.apache.s2graph.core.GraphExceptions.ModelNotFoundException
+import org.apache.s2graph.core.GraphUtil
+import org.apache.s2graph.core.JSONParser._
 import org.apache.s2graph.core.Management.JsonModel.{Index, Prop}
+import org.apache.s2graph.core.types.{InnerValLikeWithTs, InnerValLike}
 import org.apache.s2graph.core.utils.logger
-import org.apache.s2graph.core.{GraphExceptions, GraphUtil, JSONParser}
 import play.api.libs.json.Json
 import scalikejdbc._
 
@@ -262,7 +264,7 @@ case class Label(id: Option[Int], label: String,
                  isDirected: Boolean = true, serviceName: String, serviceId: Int, consistencyLevel: String = "strong",
                  hTableName: String, hTableTTL: Option[Int],
                  schemaVersion: String, isAsync: Boolean = false,
-                 compressionAlgorithm: String) extends JSONParser {
+                 compressionAlgorithm: String)  {
   def metas = LabelMeta.findAllByLabelId(id.get)
 
   def metaSeqsToNames = metas.map(x => (x.seq, x.name)) toMap
@@ -311,6 +313,10 @@ case class Label(id: Option[Int], label: String,
   lazy val metaPropsInvMap = metaProps.map(x => (x.name, x)).toMap
   lazy val metaPropNames = metaProps.map(x => x.name)
   lazy val metaPropNamesMap = metaProps.map(x => (x.seq, x.name)) toMap
+
+  lazy val defaultMetaProps = (for {
+    prop <- metaProps if LabelMeta.isValidSeq(prop.seq)
+  } yield prop.name -> toInnerVal(prop.defaultValue, prop.dataType, schemaVersion).value).toMap
 
   /** this is used only by edgeToProps */
   lazy val metaPropsDefaultMap = (for {
@@ -387,5 +393,34 @@ case class Label(id: Option[Int], label: String,
   )
 
 
+  def propsToInnerVals(props: Map[String, Any]): Map[Byte, InnerValLike] = {
+    for {
+      (k, v) <- props
+      labelMeta <- metaPropsInvMap.get(k)
+      innerVal = toInnerVal(v.toString, labelMeta.dataType, schemaVersion)
+    } yield labelMeta.seq -> innerVal
+  }
+
+  def propsToInnerValsWithTs(props: Map[String, Any],
+                         ts: Long = System.currentTimeMillis()): Map[Byte, InnerValLikeWithTs] =
+    propsToInnerVals(props).map(kv => kv._1 -> InnerValLikeWithTs(kv._2, ts))
+
+  def innerValsToProps(props: Map[Byte, InnerValLike]): Map[String, Any] = {
+    for {
+      (k, v) <- props
+      labelMeta <- metaPropsMap.get(k)
+    } yield {
+      labelMeta.name -> v.value
+    }
+  }
+
+  def innerValsWithTsToProps(props: Map[Byte, InnerValLikeWithTs]): Map[String, Any] = {
+    for {
+      (k, v) <- props
+      labelMeta <- metaPropsMap.get(k)
+    } yield {
+      labelMeta.name -> v.innerVal.value
+    }
+  }
 }
 

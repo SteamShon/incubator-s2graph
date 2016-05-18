@@ -26,14 +26,14 @@ import org.apache.s2graph.core.types.HBaseType._
 import org.apache.s2graph.core.types._
 import play.api.libs.json.Reads._
 import play.api.libs.json._
-
+import org.apache.s2graph.core.JSONParser._
 import scala.util.Try
 
 /**
  * This is designed to be bridge between rest to s2core.
  * s2core never use this for finding models.
  */
-object Management extends JSONParser {
+object Management {
 
   object JsonModel {
 
