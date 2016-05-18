@@ -54,7 +54,7 @@ object Global extends WithFilters(new GzipFilter()) {
     // init s2graph with config
     s2graph = new Graph(config)(ec)
     storageManagement = new Management(s2graph)
-    s2parser = new RequestParser(s2graph.config) // merged config
+    s2parser = new RequestParser(s2graph.config)(ec) // merged config
     s2rest = new RestHandler(s2graph)(ec)
 
     QueueActor.init(s2graph)

@@ -28,6 +28,7 @@ import org.apache.s2graph.core.parsers.WhereParser
 import org.apache.s2graph.core.storage.hbase.AsynchbaseStorage
 import org.apache.s2graph.core.types.{InnerVal, LabelWithDirection}
 import org.apache.s2graph.core.utils.logger
+import play.api.libs.json.{JsObject, Json}
 
 import scala.collection.JavaConversions._
 import scala.collection._
@@ -73,24 +74,14 @@ object Graph {
     ListBuffer[(HashKey, FilterHashKey, Edge, Double)])
 
   def toHashKey(queryParam: QueryParam, edge: Edge, isDegree: Boolean): (HashKey, FilterHashKey) = {
-    val src = edge.srcVertex.innerId.hashCode()
-    val tgt = edge.tgtVertex.innerId.hashCode()
-    val hashKey = (src, edge.labelWithDir.labelId, edge.labelWithDir.dir, tgt, isDegree)
+    val src = edge.srcId.hashCode()
+    val tgt = edge.tgtId.hashCode()
+    val hashKey = (src, edge.label.id.get, edge.direction, tgt, isDegree)
     val filterHashKey = (src, tgt)
 
     (hashKey, filterHashKey)
   }
 
-  def alreadyVisitedVertices(queryResultLs: Seq[QueryResult]): Map[(LabelWithDirection, Vertex), Boolean] = {
-    val vertices = for {
-      queryResult <- queryResultLs
-      edgeWithScore <- queryResult.edgeWithScoreLs
-      edge = edgeWithScore.edge
-      vertex = if (edge.labelWithDir.dir == GraphUtil.directions("out")) edge.tgtVertex else edge.srcVertex
-    } yield (edge.labelWithDir, vertex) -> true
-
-    vertices.toMap
-  }
 
   /** common methods for filter out, transform, aggregate queryResult */
   def convertEdges(queryParam: QueryParam, edge: Edge, nextStepOpt: Option[Step]): Seq[Edge] = {
@@ -104,19 +95,9 @@ object Graph {
     val tsVal = queryParam.timeDecay match {
       case None => 1.0
       case Some(timeDecay) =>
+
         val tsVal = try {
-          val labelMeta = edge.label.metaPropsMap(timeDecay.labelMetaSeq)
-          val innerValWithTsOpt = edge.propsWithTs.get(timeDecay.labelMetaSeq)
-          innerValWithTsOpt.map { innerValWithTs =>
-            val innerVal = innerValWithTs.innerVal
-            labelMeta.dataType match {
-              case InnerVal.LONG => innerVal.value match {
-                case n: BigDecimal => n.bigDecimal.longValue()
-                case _ => innerVal.toString().toLong
-              }
-              case _ => innerVal.toString().toLong
-            }
-          } getOrElse(edge.ts)
+          edge.properties.get(timeDecay.labelMetaName).toString.toLong
         } catch {
           case e: Exception =>
             logger.error(s"processTimeDecay error. ${edge.toLogString}", e)
@@ -125,7 +106,6 @@ object Graph {
         val timeDiff = queryParam.timestamp - tsVal
         timeDecay.decay(timeDiff)
     }
-
     tsVal
   }
 
@@ -287,7 +267,7 @@ object Graph {
     }
   }
 
-  def toGraphElement(s: String, labelMapping: Map[String, String] = Map.empty): Option[GraphElement] = Try {
+  def toGraphElement(graph: Graph, s: String, labelMapping: Map[String, String] = Map.empty): Option[GraphElement] = Try {
     val parts = GraphUtil.split(s)
     val logType = parts(2)
     val element = if (logType == "edge" | logType == "e") {
@@ -297,7 +277,7 @@ object Graph {
         case Some(toReplace) =>
           parts(5) = toReplace
       }
-      toEdge(parts)
+      toEdge(graph, parts)
     } else if (logType == "vertex" | logType == "v") {
       toVertex(parts)
     } else {
@@ -316,19 +296,19 @@ object Graph {
     toVertex(GraphUtil.split(s))
   }
 
-  def toEdge(s: String): Option[Edge] = {
-    toEdge(GraphUtil.split(s))
+  def toEdge(graph: Graph, s: String): Option[Edge] = {
+    toEdge(graph, GraphUtil.split(s))
   }
 
   //"1418342849000\tu\te\t3286249\t71770\ttalk_friend\t{\"is_hidden\":false}"
   //{"from":1,"to":101,"label":"graph_test","props":{"time":-1, "weight":10},"timestamp":1417616431},
-  def toEdge(parts: Array[String]): Option[Edge] = Try {
+  def toEdge(graph: Graph, parts: Array[String]): Option[Edge] = Try {
     val (ts, operation, logType, srcId, tgtId, label) = (parts(0), parts(1), parts(2), parts(3), parts(4), parts(5))
-    val props = if (parts.length >= 7) parts(6) else "{}"
+    val props = if (parts.length >= 7) Json.parse(parts(6)).asOpt[JsObject].getOrElse(Json.obj()) else Json.obj()
     val tempDirection = if (parts.length >= 8) parts(7) else "out"
     val direction = if (tempDirection != "out" && tempDirection != "in") "out" else tempDirection
 
-    val edge = Management.toEdge(ts.toLong, operation, srcId, tgtId, label, direction, props)
+    val edge = Management.toEdge(graph, ts.toLong, operation, srcId, tgtId, label, direction, props)
     //            logger.debug(s"toEdge: $edge")
     Some(edge)
   } recover {
@@ -348,9 +328,9 @@ object Graph {
       throw e
   } get
 
-  def initStorage(config: Config)(ec: ExecutionContext) = {
+  def initStorage(graph: Graph, config: Config)(ec: ExecutionContext) = {
     config.getString("s2graph.storage.backend") match {
-      case "hbase" => new AsynchbaseStorage(config)(ec)
+      case "hbase" => new AsynchbaseStorage(graph, config)(ec)
       case _ => throw new RuntimeException("not supported storage.")
     }
   }
@@ -363,7 +343,7 @@ class Graph(_config: Config)(implicit val ec: ExecutionContext) {
   Model.loadCache()
 
   // TODO: Make storage client by config param
-  val storage = Graph.initStorage(config)(ec)
+  val storage = Graph.initStorage(this, config)(ec)
 
 
   for {

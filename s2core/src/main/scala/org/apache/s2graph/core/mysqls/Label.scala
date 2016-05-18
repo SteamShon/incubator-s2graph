@@ -314,6 +314,10 @@ case class Label(id: Option[Int], label: String,
   lazy val metaPropNames = metaProps.map(x => x.name)
   lazy val metaPropNamesMap = metaProps.map(x => (x.seq, x.name)) toMap
 
+  lazy val defaultMetaProps = (for {
+    prop <- metaProps if LabelMeta.isValidSeq(prop.seq)
+  } yield prop.name -> toInnerVal(prop.defaultValue, prop.dataType, schemaVersion).value).toMap
+
   /** this is used only by edgeToProps */
   lazy val metaPropsDefaultMap = (for {
     prop <- metaProps if LabelMeta.isValidSeq(prop.seq)

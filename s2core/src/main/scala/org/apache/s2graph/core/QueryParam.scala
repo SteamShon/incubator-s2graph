@@ -142,10 +142,11 @@ object EdgeTransformer {
 case class EdgeTransformer(queryParam: QueryParam, jsValue: JsValue) {
   val Delimiter = "\\$"
   val targets = jsValue.asOpt[List[Vector[String]]].toList
-  val fieldsLs = for {
+  val fieldsLs: List[Vector[String]] = for {
     target <- targets
     fields <- target
   } yield fields
+
   val isDefault = fieldsLs.size == 1 && fieldsLs.head.size == 1 && (fieldsLs.head.head == "_to" || fieldsLs.head.head == "to")
 
   def toHashKeyBytes: Array[Byte] = if (isDefault) Array.empty[Byte] else Bytes.toBytes(jsValue.toString)
@@ -180,7 +181,8 @@ case class EdgeTransformer(queryParam: QueryParam, jsValue: JsValue) {
     }
   }
 
-  def toInnerValOpt(edge: Edge, fieldName: String): Option[InnerValLike] = {
+  def toInnerValOpt(_edge: Edge, fieldName: String): Option[InnerValLike] = {
+    val edge = _edge.toSnapshotEdge
     fieldName match {
       case LabelMeta.to.name => Option(edge.tgtVertex.innerId)
       case LabelMeta.from.name => Option(edge.srcVertex.innerId)
@@ -206,7 +208,7 @@ case class EdgeTransformer(queryParam: QueryParam, jsValue: JsValue) {
             replace(fmt, fieldNames.flatMap(fieldName => toInnerValOpt(edge, fieldName)), nextStepOpt)
           }
         }
-      } yield edge.updateTgtVertex(innerVal).copy(originalEdgeOpt = Option(edge))
+      } yield edge.copy(tgtId = innerVal.value, originalEdgeOpt = Option(edge))
 
 
       edges
@@ -314,7 +316,7 @@ case class QueryParam(labelWithDir: LabelWithDirection, timestamp: Long = System
   var sample = -1
   var limit = 10
   var offset = 0
-  var rank = new RankParam(labelWithDir.labelId, List(LabelMeta.countSeq -> 1))
+  var rank = new RankParam(label, Map(LabelMeta.count.name -> 1))
 
   var duration: Option[(Long, Long)] = None
   var isInverted: Boolean = false
@@ -611,7 +613,7 @@ case class QueryParam(labelWithDir: LabelWithDirection, timestamp: Long = System
 case class TimeDecay(initial: Double = 1.0,
                      lambda: Double = 0.1,
                      timeUnit: Double = 60 * 60 * 24,
-                     labelMetaSeq: Byte = LabelMeta.timeStampSeq) {
+                     labelMetaName: String) {
   def decay(diff: Double): Double = {
     //FIXME
     val ret = initial * Math.pow(1.0 - lambda, diff / timeUnit)

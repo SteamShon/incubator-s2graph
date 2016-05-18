@@ -43,6 +43,7 @@ import scala.collection.JavaConversions._
 import scala.collection.{Map, Seq}
 import scala.concurrent.duration.Duration
 import scala.concurrent.{Await, ExecutionContext, Future, duration}
+import scala.util.Try
 import scala.util.hashing.MurmurHash3
 
 
@@ -80,8 +81,9 @@ object AsynchbaseStorage {
 }
 
 
-class AsynchbaseStorage(override val config: Config)(implicit ec: ExecutionContext)
-  extends Storage[Deferred[QueryRequestWithResult]](config) {
+class AsynchbaseStorage(override val graph: Graph,
+                        override val config: Config)(implicit ec: ExecutionContext)
+  extends Storage[Deferred[QueryRequestWithResult]](graph, config) {
 
   import Extensions.DeferOps
 
@@ -309,8 +311,8 @@ class AsynchbaseStorage(override val config: Config)(implicit ec: ExecutionConte
   }
 
 
-  override def fetches(queryRequestWithScoreLs: scala.Seq[(QueryRequest, Double)],
-                       prevStepEdges: Predef.Map[VertexId, scala.Seq[EdgeWithScore]]): Future[scala.Seq[QueryRequestWithResult]] = {
+  override def fetches(queryRequestWithScoreLs: Seq[(QueryRequest, Double)],
+                       prevStepEdges: Map[VertexId, Seq[EdgeWithScore]]): Future[Seq[QueryRequestWithResult]] = {
     val defers: Seq[Deferred[QueryRequestWithResult]] = for {
       (queryRequest, prevStepScore) <- queryRequestWithScoreLs
       parentEdges <- prevStepEdges.get(queryRequest.vertex.id)
@@ -337,12 +339,19 @@ class AsynchbaseStorage(override val config: Config)(implicit ec: ExecutionConte
    */
   override def incrementCounts(edges: Seq[Edge], withWait: Boolean): Future[Seq[(Boolean, Long)]] = {
     val _client = client(withWait)
+    def toCountVal(edge: Edge): Option[Long] = {
+      try {
+        Option(edge.properties(LabelMeta.count.name).toString.toLong)
+      } catch {
+        case e: Exception =>
+          None
+      }
+    }
     val defers: Seq[Deferred[(Boolean, Long)]] = for {
       edge <- edges
+      countVal <- toCountVal(edge)
     } yield {
         val edgeWithIndex = edge.edgesWithIndex.head
-        val countWithTs = edge.propsWithTs(LabelMeta.countSeq)
-        val countVal = countWithTs.innerVal.toString().toLong
         val incr = buildIncrementsCountAsync(edgeWithIndex, countVal).head
         val request = incr.asInstanceOf[AtomicIncrementRequest]
         _client.bufferAtomicIncrement(request) withCallback { resultCount: java.lang.Long =>

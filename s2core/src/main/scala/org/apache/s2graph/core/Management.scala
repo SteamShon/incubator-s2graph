@@ -20,13 +20,14 @@
 package org.apache.s2graph.core
 
 import org.apache.s2graph.core.GraphExceptions.{InvalidHTableException, LabelAlreadyExistException, LabelNotExistException}
+import org.apache.s2graph.core.JSONParser._
 import org.apache.s2graph.core.Management.JsonModel.{Index, Prop}
 import org.apache.s2graph.core.mysqls._
 import org.apache.s2graph.core.types.HBaseType._
 import org.apache.s2graph.core.types._
 import play.api.libs.json.Reads._
 import play.api.libs.json._
-import JSONParser._
+
 import scala.util.Try
 
 /**
@@ -189,44 +190,22 @@ object Management {
     }
   }
 
-  def toEdge(ts: Long, operation: String, srcId: String, tgtId: String,
-             labelStr: String, direction: String = "", props: String): Edge = {
+  def toEdge(graph: Graph, ts: Long, operation: String, srcId: String, tgtId: String,
+             labelStr: String, direction: String = "out", props: JsObject): Edge = {
 
-    val label = tryOption(labelStr, getServiceLable)
-    val dir =
-      if (direction == "")
-//        GraphUtil.toDirection(label.direction)
-        GraphUtil.directions("out")
-      else
-        GraphUtil.toDirection(direction)
+    val label = Label.findByName(labelStr).getOrElse(throw new LabelNotExistException(s"$labelStr label is not found."))
+    val dir = GraphUtil.toDir(direction).getOrElse(throw new RuntimeException(s"$direction is not supported."))
+    val op = GraphUtil.toOp(operation).getOrElse(throw new RuntimeException(s"$operation is not supported."))
 
-    //    logger.debug(s"$srcId, ${label.srcColumnWithDir(dir)}")
-    //    logger.debug(s"$tgtId, ${label.tgtColumnWithDir(dir)}")
-
-    val srcVertexId = toInnerVal(srcId, label.srcColumn.columnType, label.schemaVersion)
-    val tgtVertexId = toInnerVal(tgtId, label.tgtColumn.columnType, label.schemaVersion)
-
-    val srcColId = label.srcColumn.id.get
-    val tgtColId = label.tgtColumn.id.get
-    val (srcVertex, tgtVertex) = if (dir == GraphUtil.directions("out")) {
-      (Vertex(SourceVertexId(srcColId, srcVertexId), System.currentTimeMillis()),
-        Vertex(TargetVertexId(tgtColId, tgtVertexId), System.currentTimeMillis()))
-    } else {
-      (Vertex(SourceVertexId(tgtColId, tgtVertexId), System.currentTimeMillis()),
-        Vertex(TargetVertexId(srcColId, srcVertexId), System.currentTimeMillis()))
-    }
-
-    //    val dir = if (direction == "") GraphUtil.toDirection(label.direction) else GraphUtil.toDirection(direction)
-    val labelWithDir = LabelWithDirection(label.id.get, dir)
-    val op = tryOption(operation, GraphUtil.toOp)
-
-    val jsObject = Json.parse(props).asOpt[JsObject].getOrElse(Json.obj())
-    val parsedProps = toProps(label, jsObject.fields).toMap
-    val propsWithTs = parsedProps.map(kv => (kv._1 -> InnerValLikeWithTs(kv._2, ts))) ++
-      Map(LabelMeta.timeStampSeq -> InnerValLikeWithTs(InnerVal.withLong(ts, label.schemaVersion), ts))
-
-    Edge(srcVertex, tgtVertex, labelWithDir, op, version = ts, propsWithTs = propsWithTs)
-
+    new Edge(graph = graph,
+      srcId = srcId,
+      tgtId = tgtId,
+      label = label,
+      direction = dir,
+      properties = fromJsonToProperties(props),
+      op = op,
+      version = ts
+    )
   }
 
   def toVertex(ts: Long, operation: String, id: String, serviceName: String, columnName: String, props: String): Vertex = {

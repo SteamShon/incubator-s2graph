@@ -30,7 +30,7 @@ import JSONParser._
 trait ExtractValue {
   val parent = "_parent."
 
-  def propToInnerVal(edge: Edge, key: String) = {
+  def propToInnerVal(edge: Edge, key: String): InnerValLike = {
     val (propKey, parentEdge) = findParentEdge(edge, key)
 
     val label = parentEdge.label
@@ -38,24 +38,29 @@ trait ExtractValue {
     val labelMeta = metaPropInvMap.getOrElse(propKey, throw WhereParserException(s"Where clause contains not existing property name: $propKey"))
     val metaSeq = labelMeta.seq
 
-    metaSeq match {
-      case LabelMeta.from.seq => parentEdge.srcVertex.innerId
-      case LabelMeta.to.seq => parentEdge.tgtVertex.innerId
-      case _ => parentEdge.propsWithTs.get(metaSeq) match {
-        case None => toInnerVal(labelMeta.defaultValue, labelMeta.dataType, label.schemaVersion)
-        case Some(edgeVal) => edgeVal.innerVal
+    val value = metaSeq match {
+      case LabelMeta.from.seq => parentEdge.srcId.toString
+      case LabelMeta.to.seq => parentEdge.tgtId.toString
+      case _ => parentEdge.properties.get(propKey) match {
+        case None => // use default value
+          labelMeta.defaultValue
+        case Some(edgeVal) =>
+          edgeVal.toString
       }
     }
+
+    toInnerVal(value, labelMeta.dataType, label.schemaVersion)
   }
 
-  def valueToCompare(edge: Edge, key: String, value: String) = {
+  def valueToCompare(edge: Edge, key: String, value: String): InnerValLike = {
     val label = edge.label
     if (value.startsWith(parent) || label.metaPropsInvMap.contains(value)) propToInnerVal(edge, value)
     else {
       val (propKey, _) = findParentEdge(edge, key)
 
       val labelMeta = label.metaPropsInvMap.getOrElse(propKey, throw WhereParserException(s"Where clause contains not existing property name: $propKey"))
-      val (srcColumn, tgtColumn) = label.srcTgtColumn(edge.labelWithDir.dir)
+
+      val (srcColumn, tgtColumn) = label.srcTgtColumn(edge.direction)
       val dataType = propKey match {
         case "_to" | "to" => tgtColumn.columnType
         case "_from" | "from" => srcColumn.columnType

@@ -153,9 +153,9 @@ object JSONParser {
     ret
   }
 
-  def anyValToJsValue(value: Any): Try[JsValue] = {
-    Try {
-      value match {
+  def anyValToJsValue(value: Any): Option[JsValue] = {
+    try {
+      val v = value match {
         case null => JsNull
         case l: Long => JsNumber(l)
         case i: Int => JsNumber(i)
@@ -168,6 +168,10 @@ object JSONParser {
         case b: Boolean => JsBoolean(b)
         case _ => throw new RuntimeException(s"$value, ${value.getClass.getName} is not supported data type.")
       }
+      Option(v)
+    } catch {
+      case e: Exception =>
+        None
     }
   }
   def propertiesToJson(props: Map[String, Any]): Map[String, JsValue] = {
@@ -179,5 +183,20 @@ object JSONParser {
     } yield {
       k -> jsValue
     }
+  }
+
+  def jsValueToString(jsValue: JsValue): String = {
+    jsValue match {
+      case s: JsString => s.value
+      case _ => jsValue.toString
+    }
+  }
+  def fromJsonToProperties(jsObject: JsObject): Map[String, Any] = {
+    val kvs = for {
+      (k, v) <- jsObject.fieldSet
+    } yield {
+      k -> jsValueToString(v)
+    }
+    kvs.toMap
   }
 }

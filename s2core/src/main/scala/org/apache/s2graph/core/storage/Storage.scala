@@ -33,7 +33,7 @@ import org.apache.s2graph.core.types._
 import org.apache.s2graph.core.utils.{Extensions, logger}
 
 import scala.annotation.tailrec
-import scala.collection.Seq
+import scala.collection.{Map, Seq}
 import scala.collection.mutable.ArrayBuffer
 import scala.concurrent.{ExecutionContext, Future}
 import scala.util.{Random, Try}
@@ -413,8 +413,8 @@ abstract class Storage[R](val graph: Graph,
       Future.sequence(futures).map { rets => rets.forall(identity) }
     } else {
       def commit(_edges: Seq[Edge], statusCode: Byte): Future[Boolean] = {
-
-        fetchSnapshotEdge(_edges.head) flatMap { case (queryParam, fetchedEdgeOpt, kvOpt) =>
+        val _sn = _edges.head.toSnapshotEdge
+        fetchSnapshotEdge(_sn) flatMap { case (queryParam, fetchedEdgeOpt, kvOpt) =>
           val snapshotEdgeOpt = fetchedEdgeOpt.map(_.toSnapshotEdge)
           val (newEdge, edgeUpdate) = Edge.buildOperation(graph, queryParam.label, snapshotEdgeOpt, _edges)
 
@@ -999,49 +999,40 @@ abstract class Storage[R](val graph: Graph,
 
   //  def futureCache[T] = Cache[Long, (Long, T)]
 
-  protected def toRequestEdge(queryRequest: QueryRequest): IndexEdge = {
-    val srcVertex = queryRequest.vertex
-    //    val tgtVertexOpt = queryRequest.tgtVertexOpt
-    val edgeCf = Serializable.edgeCf
+  protected def toRequestEdge(queryRequest: QueryRequest): Edge = {
+    val srcId = queryRequest.vertex.innerId.value
     val queryParam = queryRequest.queryParam
-    val tgtVertexIdOpt = queryParam.tgtVertexInnerIdOpt
     val label = queryParam.label
     val labelWithDir = queryParam.labelWithDir
-    val (srcColumn, tgtColumn) = label.srcTgtColumn(labelWithDir.dir)
-    val (srcInnerId, tgtInnerId) = tgtVertexIdOpt match {
-      case Some(tgtVertexId) => // _to is given.
-        /** we use toSnapshotEdge so dont need to swap src, tgt */
-        val src = InnerVal.convertVersion(srcVertex.innerId, srcColumn.columnType, label.schemaVersion)
-        val tgt = InnerVal.convertVersion(tgtVertexId, tgtColumn.columnType, label.schemaVersion)
-        (src, tgt)
-      case None =>
-        val src = InnerVal.convertVersion(srcVertex.innerId, srcColumn.columnType, label.schemaVersion)
-        (src, src)
+    val tgtId = queryParam.tgtVertexInnerIdOpt match {
+      case None => srcId
+      case Some(tgtVertexId) => tgtVertexId.value
     }
-
-    val (srcVId, tgtVId) = (SourceVertexId(srcColumn.id.get, srcInnerId), TargetVertexId(tgtColumn.id.get, tgtInnerId))
-    val (srcV, tgtV) = (Vertex(srcVId), Vertex(tgtVId))
     val currentTs = System.currentTimeMillis()
-    val propsWithTs = Map(LabelMeta.timeStampSeq -> InnerValLikeWithTs(InnerVal.withLong(currentTs, label.schemaVersion), currentTs))
+    val propsWithTs = Map(LabelMeta.timestamp.name -> currentTs).toMap
 
-    Edge(srcV, tgtV, labelWithDir, propsWithTs = propsWithTs)
+    new Edge(graph = graph,
+      srcId = srcId,
+      tgtId = tgtId,
+      label = label,
+      direction = labelWithDir.dir,
+      properties = propsWithTs)
   }
 
 
 
-  protected def fetchSnapshotEdge(_edge: Edge): Future[(QueryParam, Option[Edge], Option[SKeyValue])] = {
-    val edge = _edge.toSnapshotEdge
-    val labelWithDir = edge.labelWithDir
+  protected def fetchSnapshotEdge(snapshotEdge: SnapshotEdge): Future[(QueryParam, Option[Edge], Option[SKeyValue])] = {
+
+    val labelWithDir = snapshotEdge.labelWithDir
     val queryParam = QueryParam(labelWithDir)
-    val _queryParam = queryParam.tgtVertexInnerIdOpt(Option(edge.tgtVertex.innerId))
-    val q = Query.toQuery(Seq(edge.srcVertex), _queryParam)
-    val queryRequest = QueryRequest(q, 0, edge.srcVertex, _queryParam)
+    val _queryParam = queryParam.tgtVertexInnerIdOpt(Option(snapshotEdge.tgtVertex.innerId))
+    val q = Query.toQuery(Seq(snapshotEdge.srcVertex), _queryParam)
+    val queryRequest = QueryRequest(q, 0, snapshotEdge.srcVertex, _queryParam)
 
     fetchSnapshotEdgeKeyValues(buildRequest(queryRequest)).map { kvs =>
       val (edgeOpt, kvOpt) =
         if (kvs.isEmpty) (None, None)
         else {
-          val snapshotEdgeOpt = toSnapshotEdge()
           val _edgeOpt = toEdges(kvs, queryParam, 1.0, isInnerCall = true, parentEdges = Nil).headOption.map(_.edge)
           val _kvOpt = kvs.headOption
           (_edgeOpt, _kvOpt)
@@ -1049,11 +1040,24 @@ abstract class Storage[R](val graph: Graph,
       (queryParam, edgeOpt, kvOpt)
     } recoverWith { case ex: Throwable =>
       logger.error(s"fetchQueryParam failed. fallback return.", ex)
-      throw new FetchTimeoutException(s"${edge.toLogString}")
+      throw new FetchTimeoutException(s"${snapshotEdge.toLogString}")
     }
   }
 
-  protected def fetchStep(orgQuery: Query, queryRequestWithResultsLs: Seq[QueryRequestWithResult]): Future[Seq[QueryRequestWithResult]] = {
+
+  def alreadyVisitedVertices(queryResultLs: Seq[QueryResult]): Map[(LabelWithDirection, Vertex), Boolean] = {
+    val vertices = for {
+      queryResult <- queryResultLs
+      edgeWithScore <- queryResult.edgeWithScoreLs
+      edge = edgeWithScore.edge.toSnapshotEdge
+      vertex = if (edge.labelWithDir.dir == GraphUtil.directions("out")) edge.tgtVertex else edge.srcVertex
+    } yield (edge.labelWithDir, vertex) -> true
+
+    vertices.toMap
+  }
+
+  protected def fetchStep(orgQuery: Query,
+                          queryRequestWithResultsLs: Seq[QueryRequestWithResult]): Future[Seq[QueryRequestWithResult]] = {
     if (queryRequestWithResultsLs.isEmpty) Future.successful(Nil)
     else {
       val queryRequest = queryRequestWithResultsLs.head.queryRequest
@@ -1068,11 +1072,12 @@ abstract class Storage[R](val graph: Graph,
       val step = q.steps(stepIdx)
       val alreadyVisited =
         if (stepIdx == 0) Map.empty[(LabelWithDirection, Vertex), Boolean]
-        else Graph.alreadyVisitedVertices(queryResultsLs)
+        else alreadyVisitedVertices(queryResultsLs)
 
       val groupedBy = queryResultsLs.flatMap { queryResult =>
         queryResult.edgeWithScoreLs.map { case edgeWithScore =>
-          edgeWithScore.edge.tgtVertex -> edgeWithScore
+          val edge = edgeWithScore.edge
+          edge.toSnapshotEdge.tgtVertex -> edgeWithScore
         }
       }.groupBy { case (vertex, edgeWithScore) => vertex }
 
@@ -1119,7 +1124,7 @@ abstract class Storage[R](val graph: Graph,
         fallback
       } else {
         // current stepIdx = -1
-        val startQueryResultLs = QueryResult.fromVertices(q)
+        val startQueryResultLs = QueryResult.fromVertices(graph, q)
         q.steps.foldLeft(Future.successful(startQueryResultLs)) { case (acc, step) =>
             fetchStepFuture(q, acc)
 //          fetchStepFuture(q, acc).map { stepResults =>
@@ -1142,13 +1147,18 @@ abstract class Storage[R](val graph: Graph,
     val ts = System.currentTimeMillis()
     val futures = for {
       (srcVertex, tgtVertex, queryParam) <- params
-      propsWithTs = Map(LabelMeta.timeStampSeq -> InnerValLikeWithTs.withLong(ts, ts, queryParam.label.schemaVersion))
-      edge = Edge(srcVertex, tgtVertex, queryParam.labelWithDir, propsWithTs = propsWithTs)
+      propsWithTs = Map(LabelMeta.timestamp.name -> ts).toMap
+      snapshotEdge = new Edge(graph = graph,
+        srcId = srcVertex.innerId.value,
+        tgtId = tgtVertex.innerId.value,
+        label = queryParam.label,
+        direction = queryParam.labelWithDir.dir,
+        properties = propsWithTs).toSnapshotEdge
     } yield {
-        fetchSnapshotEdge(edge).map { case (queryParam, edgeOpt, kvOpt) =>
-          val _queryParam = queryParam.tgtVertexInnerIdOpt(Option(edge.tgtVertex.innerId))
-          val q = Query.toQuery(Seq(edge.srcVertex), _queryParam)
-          val queryRequest = QueryRequest(q, 0, edge.srcVertex, _queryParam)
+        fetchSnapshotEdge(snapshotEdge).map { case (queryParam, edgeOpt, kvOpt) =>
+          val _queryParam = queryParam.tgtVertexInnerIdOpt(Option(snapshotEdge.tgtVertex.innerId))
+          val q = Query.toQuery(Seq(snapshotEdge.srcVertex), _queryParam)
+          val queryRequest = QueryRequest(q, 0, snapshotEdge.srcVertex, _queryParam)
           val queryResult = QueryResult(edgeOpt.toSeq.map(e => EdgeWithScore(e, 1.0)))
           QueryRequestWithResult(queryRequest, queryResult)
         }
@@ -1244,11 +1254,13 @@ abstract class Storage[R](val graph: Graph,
     }
   }
 
-  def buildVertexPutsAsync(edge: Edge): Seq[SKeyValue] =
+  def buildVertexPutsAsync(edge: Edge): Seq[SKeyValue] = {
+    val snapshotEdge = edge.toSnapshotEdge
     if (edge.op == GraphUtil.operations("delete"))
-      buildDeleteBelongsToId(edge.srcForVertex) ++ buildDeleteBelongsToId(edge.tgtForVertex)
+      buildDeleteBelongsToId(snapshotEdge.srcVertex) ++ buildDeleteBelongsToId(snapshotEdge.tgtVertex)
     else
-      vertexSerializer(edge.srcForVertex).toKeyValues ++ vertexSerializer(edge.tgtForVertex).toKeyValues
+      vertexSerializer(snapshotEdge.srcVertex).toKeyValues ++ vertexSerializer(snapshotEdge.tgtVertex).toKeyValues
+  }
 
   def buildPutsAll(vertex: Vertex): Seq[SKeyValue] = {
     vertex.op match {

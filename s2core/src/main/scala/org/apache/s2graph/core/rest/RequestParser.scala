@@ -29,6 +29,7 @@ import org.apache.s2graph.core.parsers.{Where, WhereParser}
 import org.apache.s2graph.core.types._
 import play.api.libs.json._
 import JSONParser._
+import scala.concurrent.ExecutionContext
 import scala.util.{Failure, Success, Try}
 
 object TemplateHelper {
@@ -70,9 +71,11 @@ object TemplateHelper {
   }
 }
 
-class RequestParser(config: Config) {
+class RequestParser(config: Config)(implicit val ec: ExecutionContext) {
 
   import Management.JsonModel._
+
+  val graph = new Graph(config)
 
   val hardLimit = 100000
   val defaultLimit = 100
@@ -395,12 +398,11 @@ class RequestParser(config: Config) {
       val cacheTTL = (labelGroup \ "cacheTTL").asOpt[Long].getOrElse(-1L)
       val timeDecayFactor = (labelGroup \ "timeDecay").asOpt[JsObject].map { jsVal =>
         val propName = (jsVal \ "propName").asOpt[String].getOrElse(LabelMeta.timestamp.name)
-        val propNameSeq = label.metaPropsInvMap.get(propName).map(_.seq).getOrElse(LabelMeta.timeStampSeq)
         val initial = (jsVal \ "initial").asOpt[Double].getOrElse(1.0)
         val decayRate = (jsVal \ "decayRate").asOpt[Double].getOrElse(0.1)
         if (decayRate >= 1.0 || decayRate <= 0.0) throw new BadQueryException("decay rate should be 0.0 ~ 1.0")
         val timeUnit = (jsVal \ "timeUnit").asOpt[Double].getOrElse(60 * 60 * 24.0)
-        TimeDecay(initial, decayRate, timeUnit, propNameSeq)
+        TimeDecay(initial, decayRate, timeUnit, propName)
       }
       val threshold = (labelGroup \ "threshold").asOpt[Double].getOrElse(QueryParam.DefaultThreshold)
       // TODO: refactor this. dirty
@@ -491,12 +493,12 @@ class RequestParser(config: Config) {
     val label = parse[String](jsValue, "label")
     val timestamp = parse[Long](jsValue, "timestamp")
     val direction = parse[Option[String]](jsValue, "direction").getOrElse("")
-    val props = (jsValue \ "props").asOpt[JsValue].getOrElse("{}")
+    val props = (jsValue \ "props").asOpt[JsObject].getOrElse(Json.obj())
     for {
       srcId <- srcIds
       tgtId <- tgtIds
     } yield {
-      Management.toEdge(timestamp, operation, srcId, tgtId, label, direction, props.toString)
+      Management.toEdge(graph, timestamp, operation, srcId, tgtId, label, direction, props)
     }
   }
 
@@ -626,7 +628,7 @@ class RequestParser(config: Config) {
     for {
       edgeStr <- edgeStrs
       str <- GraphUtil.parseString(edgeStr)
-      element <- Graph.toGraphElement(str)
+      element <- Graph.toGraphElement(graph, str)
     } yield element
   }
 

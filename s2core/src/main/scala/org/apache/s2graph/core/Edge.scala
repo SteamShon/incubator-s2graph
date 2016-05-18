@@ -601,7 +601,7 @@ object Edge {
     (propsWithTs, true)
   }
 
-  def fromString(s: String): Option[Edge] = Graph.toEdge(s)
+//  def fromString(s: String): Option[Edge] = Graph.toEdge(s)
 
 
 }

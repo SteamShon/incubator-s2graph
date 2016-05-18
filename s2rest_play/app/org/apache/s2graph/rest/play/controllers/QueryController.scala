@@ -19,7 +19,6 @@
 
 package org.apache.s2graph.rest.play.controllers
 
-import org.apache.s2graph.core.JSONParser
 import org.apache.s2graph.core.mysqls.Experiment
 import org.apache.s2graph.core.rest.RestHandler
 import play.api.libs.json.Json
@@ -27,7 +26,7 @@ import play.api.mvc._
 
 import scala.language.postfixOps
 
-object QueryController extends Controller with JSONParser {
+object QueryController extends Controller {
 
   import ApplicationController._
   import play.api.libs.concurrent.Execution.Implicits.defaultContext
