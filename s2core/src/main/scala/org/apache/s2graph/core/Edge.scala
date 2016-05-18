@@ -37,8 +37,8 @@ case class IndexEdge(srcVertex: Vertex,
                      props: Map[Byte, InnerValLike]) {
   if (!props.containsKey(LabelMeta.timeStampSeq)) throw new Exception("Timestamp is required.")
   //  assert(props.containsKey(LabelMeta.timeStampSeq))
+  val ts = props(LabelMeta.timeStampSeq).toIdString().toLong
 
-  val ts = props(LabelMeta.timeStampSeq).toString.toLong
   val degreeEdge = props.contains(LabelMeta.degreeSeq)
   lazy val label = Label.findById(labelWithDir.labelId)
   val schemaVer = label.schemaVersion
@@ -115,7 +115,8 @@ case class SnapshotEdge(srcVertex: Vertex,
   val label = Label.findById(labelWithDir.labelId)
   val schemaVer = label.schemaVersion
   lazy val propsWithoutTs = props.mapValues(_.innerVal)
-  val ts = props(LabelMeta.timeStampSeq).innerVal.toString().toLong
+
+  val ts = props(LabelMeta.timeStampSeq).innerVal.toIdString().toLong
 
   def toEdge(graph: Graph, label: Label): Edge = {
     Edge(graph, label, this)
@@ -158,12 +159,13 @@ case class Edge(graph: Graph,
 
   /** specify which serialize schema this edge should use */
   val schemaVer = label.schemaVersion
-
-  override val ts = (properties.get(LabelMeta.timestamp.name), properties.get(LabelMeta.timestamp.name.drop(1))) match {
-    case (Some(l: Long), _) => l
-    case (_, Some(l: Long)) => l
-    case (None, None) => throw new RuntimeException("Timestamp is required.")
-    case _ => throw new RuntimeException("wrong type for timestamp.")
+  val tsVal = properties.get(LabelMeta.timestamp.name)
+  override val ts = tsVal match {
+    case Some(v) => v match {
+      case n: BigDecimal => n.longValue()
+      case _ => v.toString.toLong
+    }
+    case None => throw new RuntimeException("Timestamp is required.")
   }
 
   /** swap srcId and tgtId */

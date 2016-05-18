@@ -265,7 +265,7 @@ case class VertexParam(vertices: Seq[Vertex]) {
 //}
 
 
-case class RankParam(label: Label,
+case class RankParam(labelId: Int,
                       propertyKeyWeights: Map[String, Double] = Map(LabelMeta.count.name -> 1.0)) {
   def toHashKeyBytes(): Array[Byte] = {
     var bytes = Array.empty[Byte]
@@ -316,7 +316,7 @@ case class QueryParam(labelWithDir: LabelWithDirection, timestamp: Long = System
   var sample = -1
   var limit = 10
   var offset = 0
-  var rank = new RankParam(label, Map(LabelMeta.count.name -> 1))
+  var rank = new RankParam(labelWithDir.labelId, Map(LabelMeta.count.name -> 1))
 
   var duration: Option[(Long, Long)] = None
   var isInverted: Boolean = false

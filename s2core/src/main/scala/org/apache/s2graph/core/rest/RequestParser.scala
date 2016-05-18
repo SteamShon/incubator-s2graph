@@ -71,11 +71,9 @@ object TemplateHelper {
   }
 }
 
-class RequestParser(config: Config)(implicit val ec: ExecutionContext) {
+class RequestParser(config: Config, graph: Graph) {
 
   import Management.JsonModel._
-
-  val graph = new Graph(config)
 
   val hardLimit = 100000
   val defaultLimit = 100
@@ -419,7 +417,7 @@ class RequestParser(config: Config)(implicit val ec: ExecutionContext) {
       QueryParam(labelWithDir)
         .sample(sample)
         .limit(offset, limit)
-        .rank(RankParam(label, scoring))
+        .rank(RankParam(label.id.get, scoring))
         .exclude(exclude)
         .include(include)
         .duration(duration)

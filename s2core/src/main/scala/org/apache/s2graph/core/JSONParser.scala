@@ -163,7 +163,7 @@ object JSONParser {
         case b: Byte => JsNumber(b.toInt)
         case f: Float => JsNumber(f.toDouble)
         case d: Double => JsNumber(d)
-        case bd: BigDecimal => JsNumber(bd)
+        case bd: BigDecimal => JsNumber(bd.toLong)
         case s: String => JsString(s)
         case b: Boolean => JsBoolean(b)
         case _ => throw new RuntimeException(s"$value, ${value.getClass.getName} is not supported data type.")
@@ -171,6 +171,7 @@ object JSONParser {
       Option(v)
     } catch {
       case e: Exception =>
+        logger.error(s"$e", e)
         None
     }
   }

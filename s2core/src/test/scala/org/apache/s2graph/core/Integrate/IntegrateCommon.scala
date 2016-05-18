@@ -43,7 +43,7 @@ trait IntegrateCommon extends FunSuite with Matchers with BeforeAndAfterAll {
     config = ConfigFactory.load()
     graph = new Graph(config)(ExecutionContext.Implicits.global)
     management = new Management(graph)
-    parser = new RequestParser(graph.config)
+    parser = new RequestParser(graph.config, graph)
     initTestData()
   }
 

@@ -196,13 +196,13 @@ object Management {
     val label = Label.findByName(labelStr).getOrElse(throw new LabelNotExistException(s"$labelStr label is not found."))
     val dir = GraphUtil.toDir(direction).getOrElse(throw new RuntimeException(s"$direction is not supported."))
     val op = GraphUtil.toOp(operation).getOrElse(throw new RuntimeException(s"$operation is not supported."))
-
+    val mergedProps = fromJsonToProperties(props) ++ Map(LabelMeta.timestamp.name -> ts)
     new Edge(graph = graph,
       srcId = srcId,
       tgtId = tgtId,
       label = label,
       direction = dir,
-      properties = fromJsonToProperties(props),
+      properties = mergedProps,
       op = op,
       version = ts
     )

@@ -41,7 +41,7 @@ object RestHandler {
 class RestHandler(graph: Graph)(implicit ec: ExecutionContext) {
 
   import RestHandler._
-  val requestParser = new RequestParser(graph.config)
+  val requestParser = new RequestParser(graph.config, graph)
 
   /**
     * Public APIS

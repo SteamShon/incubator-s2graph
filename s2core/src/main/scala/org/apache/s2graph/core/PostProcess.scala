@@ -20,10 +20,10 @@
 package org.apache.s2graph.core
 
 import org.apache.s2graph.core.GraphExceptions.BadQueryException
+import org.apache.s2graph.core.JSONParser._
 import org.apache.s2graph.core.mysqls.{ColumnMeta, Label, LabelMeta, ServiceColumn}
-import org.apache.s2graph.core.types.{InnerVal, InnerValLike}
 import play.api.libs.json.{Json, _}
-import JSONParser._
+
 import scala.collection.mutable.ListBuffer
 
 object PostProcess {
@@ -248,15 +248,16 @@ object PostProcess {
       hashKey = toHashKey(edge, queryRequest.queryParam, queryOption.filterOutFields)
       if !excludeIds.contains(hashKey)
     } {
-      val fromOpt = anyValToJsValue(edge.srcId)
-      if (edge.isDegree && fromOpt.isDefined) {
-        if (queryOption.limitOpt.isEmpty) {
+      if (edge.isDegree) {
+        for {
+          srcId <- anyValToJsValue(edge.srcId)
+          degreeVal <- anyValToJsValue(edge.properties(LabelMeta.degree.name))
+        } {
           degrees += Json.obj(
-            "from" -> fromOpt.get,
+            "from" -> srcId,
             "label" -> queryRequest.queryParam.label.label,
             "direction" -> GraphUtil.fromDirection(edge.direction),
-            LabelMeta.degree.name -> anyValToJsValue(edge.properties(LabelMeta.degree.name))
-          )
+            LabelMeta.degree.name -> degreeVal)
         }
       } else {
         val keyWithJs = edgeToJson(edge, score, queryRequest.query.selectColumnsSet, queryRequest.query.returnTree)
@@ -455,21 +456,20 @@ object PostProcess {
       } {
         //TODO: implement cacheRemain.
         val value = column match {
-//            case "cacheRemain" => JsNumber(queryParam.cacheTTLInMillis - (System.currentTimeMillis() - queryParam.timestamp))
-            case "from" => edge.srcId
-            case "to" => edge.tgtId
-            case "label" => edge.label.label
-            case "direction" => GraphUtil.fromDirection(edge.direction)
-            case "_timestamp" | "timestamp" => edge.ts
-            case "score" => score
-            case _ => null
-          }
-          anyValToJsValue(value) match {
-            case Some(jsValue) => builder += (column -> jsValue)
-          }
+          //            case "cacheRemain" => JsNumber(queryParam.cacheTTLInMillis - (System.currentTimeMillis() - queryParam.timestamp))
+          case "from" => edge.srcId
+          case "to" => edge.tgtId
+          case "label" => edge.label.label
+          case "direction" => GraphUtil.fromDirection(edge.direction)
+          case "_timestamp" | "timestamp" => edge.ts
+          case "score" => score
+          case _ => null
         }
-     builder ++= propertiesToJson(edge.properties)
-
+        anyValToJsValue(value) match {
+          case Some(jsValue) => builder += (column -> jsValue)
+        }
+      }
+      builder += ("props" -> Json.toJson(propertiesToJson(edge.properties)))
     }
 
     builder.result()

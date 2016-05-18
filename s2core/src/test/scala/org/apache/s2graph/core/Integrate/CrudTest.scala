@@ -177,7 +177,8 @@ class CrudTest extends IntegrateCommon {
 
       def run(tcNum: Int, tcString: String, opWithProps: List[(Long, String, String)], expected: Map[String, String]) = {
         for {
-          labelName <- List(testLabelName, testLabelName2)
+//          labelName <- List(testLabelName, testLabelName2)
+          labelName <- List(testLabelName)
           i <- 0 until NumOfEachTest
         } {
           seed += 1
@@ -208,6 +209,7 @@ class CrudTest extends IntegrateCommon {
             val query = queryJson(serviceName, columnName, labelName, qId, direction, cacheTTL)
 
             val jsResult = TestUtil.getEdgesSync(query)
+            println(s"[Result]: ${Json.prettyPrint(jsResult)}")
 
             val results = jsResult \ "results"
             val deegrees = (jsResult \ "degrees").as[List[JsObject]]
