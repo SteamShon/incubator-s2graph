@@ -24,7 +24,7 @@ import org.apache.s2graph.core.mysqls.{LabelIndex, LabelMeta}
 import org.apache.s2graph.core.storage.StorageDeserializable._
 import org.apache.s2graph.core.storage.{CanSKeyValue, Deserializable, SKeyValue, StorageDeserializable}
 import org.apache.s2graph.core.types.{HBaseType, LabelWithDirection, SourceAndTargetVertexIdPair, SourceVertexId}
-import org.apache.s2graph.core.{Edge, QueryParam, SnapshotEdge, Vertex}
+import org.apache.s2graph.core._
 
 class SnapshotEdgeDeserializable extends Deserializable[SnapshotEdge] {
 
@@ -85,11 +85,16 @@ class SnapshotEdgeDeserializable extends Deserializable[SnapshotEdge] {
           val lockTs = Option(Bytes.toLong(kv.value, pos, 8))
 
           val pendingEdge =
-            Edge(Vertex(srcVertexId, cellVersion),
-              Vertex(tgtVertexId, cellVersion),
-              labelWithDir, pendingEdgeOp,
-              cellVersion, pendingEdgeProps.toMap,
-              statusCode = pendingEdgeStatusCode, lockTs = lockTs)
+            SnapshotEdge(srcVertex = Vertex(srcVertexId, cellVersion),
+              tgtVertex = Vertex(tgtVertexId, cellVersion),
+              labelWithDir = labelWithDir,
+              op = pendingEdgeOp,
+              version = cellVersion,
+              props = pendingEdgeProps.toMap,
+              pendingEdgeOpt = None,
+              statusCode = pendingEdgeStatusCode,
+              lockTs = lockTs)
+
           Option(pendingEdge)
         }
 

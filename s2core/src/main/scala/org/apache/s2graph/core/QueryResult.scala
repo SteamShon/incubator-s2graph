@@ -34,6 +34,8 @@ object QueryResult {
       val currentTs = System.currentTimeMillis()
       val propsWithTs = Map(LabelMeta.timeStampSeq ->
         InnerValLikeWithTs(InnerVal.withLong(currentTs, label.schemaVersion), currentTs))
+
+
       for {
         vertex <- query.vertices
       } yield {
@@ -49,7 +51,7 @@ case class QueryRequestWithResult(queryRequest: QueryRequest, queryResult: Query
 
 case class QueryRequest(query: Query,
                         stepIdx: Int,
-                        vertex: Vertex,
+                        startVertexId: Any,
                         queryParam: QueryParam)
 
 
