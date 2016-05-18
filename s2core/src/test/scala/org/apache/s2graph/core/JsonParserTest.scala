@@ -21,8 +21,9 @@ package org.apache.s2graph.core
 
 import org.apache.s2graph.core.types.{InnerVal, InnerValLike}
 import org.scalatest.{FunSuite, Matchers}
+import org.apache.s2graph.core.JSONParser._
 
-class JsonParserTest extends FunSuite with Matchers with TestCommon with JSONParser {
+class JsonParserTest extends FunSuite with Matchers with TestCommon {
 
   import InnerVal._
   import types.HBaseType._
