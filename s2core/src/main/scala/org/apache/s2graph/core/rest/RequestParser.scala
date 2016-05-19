@@ -478,7 +478,7 @@ class RequestParser(config: Config) {
 
     val label = parse[String](jsValue, "label")
     val timestamp = parse[Long](jsValue, "timestamp")
-    val direction = parse[Option[String]](jsValue, "direction").getOrElse("")
+    val direction = parse[Option[String]](jsValue, "direction").getOrElse("out")
     val propsJson = (jsValue \ "props").asOpt[JsObject].getOrElse(Json.obj())
     for {
       srcId <- srcIds

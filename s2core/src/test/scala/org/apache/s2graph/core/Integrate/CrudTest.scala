@@ -210,8 +210,6 @@ class CrudTest extends IntegrateCommon {
 
             val jsResult = TestUtil.getEdgesSync(query)
 
-            logger.debug(s"[Result]: ${Json.prettyPrint(jsResult)}")
-
             val results = jsResult \ "results"
             val deegrees = (jsResult \ "degrees").as[List[JsObject]]
             val propsLs = (results \\ "props").seq

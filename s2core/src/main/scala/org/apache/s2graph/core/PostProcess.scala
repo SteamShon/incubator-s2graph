@@ -44,7 +44,9 @@ object PostProcess {
         "to" -> anyValToJsValue(s2Edge.tgtId),
         "label" -> s2Edge.labelName,
         "score" -> score,
-        "props" -> JSONParser.propertiesToJson(s2Edge.props)
+        "props" -> JSONParser.propertiesToJson(s2Edge.props),
+        "direction" -> s2Edge.direction,
+        "timestamp" -> anyValToJsValue(s2Edge.ts)
       )
     }
   }
@@ -57,6 +59,7 @@ object PostProcess {
       val degrees = stepResult.degreeEdges.map(t => s2EdgeToJsValue(t.s2Edge, t.score, true))
       val ls = stepResult.results.map(t => s2EdgeToJsValue(t.s2Edge, t.score))
       Json.obj(
+        "size" -> ls.size,
         "degrees" -> Json.toJson(degrees),
         "results" -> Json.toJson(ls)
       )
