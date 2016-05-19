@@ -22,7 +22,7 @@ package org.apache.s2graph.core
 import org.apache.s2graph.core.mysqls.LabelMeta
 import org.apache.s2graph.core.types.{InnerVal, InnerValLikeWithTs}
 
-import scala.collection.Seq
+import scala.collection.{mutable, Seq}
 import scala.collection.mutable.ListBuffer
 
 object QueryResult {
@@ -70,8 +70,11 @@ case class EdgeWithScore(edge: Edge, score: Double)
 /** result */
 
 object StepResult {
+  import OrderingUtil._
+
   type Values = Seq[S2EdgeWithScore]
   type GroupByKey = Seq[Option[Any]]
+  val EmptyOrderByValues = (None, None, None, None)
   val Empty = StepResult(Nil, Map.empty[GroupByKey, Values], Nil, Nil)
 
   /** TODO implement this. */
@@ -100,27 +103,72 @@ object StepResult {
       result.edgeWithScoreLs
     }
   }
+
+  def toOrderByValues(s2Edge: S2Edge,
+                       score: Double,
+                       orderByKeys: Seq[String]): (Any, Any, Any, Any) = {
+    def toValue(propertyKey: String): Any = {
+      propertyKey match {
+        case "score" => score
+        case "timestamp" | "_timestamp" => s2Edge.ts
+        case _ => s2Edge.props.get(propertyKey)
+      }
+    }
+    if (orderByKeys.isEmpty) (None, None, None, None)
+    else {
+      orderByKeys.length match {
+        case 1 =>
+          (toValue(orderByKeys(0)), None, None, None)
+        case 2 =>
+          (toValue(orderByKeys(0)), toValue(orderByKeys(1)), None, None)
+        case 3 =>
+          (toValue(orderByKeys(0)), toValue(orderByKeys(1)), toValue(orderByKeys(2)), None)
+        case _ =>
+          (toValue(orderByKeys(0)), toValue(orderByKeys(1)), toValue(orderByKeys(2)), toValue(orderByKeys(3)))
+      }
+    }
+  }
+
+
   //TODO: OrderBy, Select is not implemented.
   def apply(graph: Graph,
             query: Query,
             queryRequestWithResultLs: Seq[QueryRequestWithResult]): StepResult = {
+
     val degreeEdges = new ListBuffer[S2EdgeWithScore]()
     val results = for {
       requestWithResult <- queryRequestWithResultLs
       (request, result) = QueryRequestWithResult.unapply(requestWithResult).get if result.edgeWithScoreLs.nonEmpty
       edgeWithScore <- filterEdgeWithScoreLs(graph, result, degreeEdges)
-    } yield S2EdgeWithScore(S2Edge.apply(graph, edgeWithScore.edge), edgeWithScore.score)
+    } yield {
+        val s2Edge = S2Edge.apply(graph, edgeWithScore.edge)
+        val orderByValues =
+          if (query.orderByColumns.isEmpty) (edgeWithScore.score, None, None, None)
+          else toOrderByValues(s2Edge, edgeWithScore.score, query.orderByKeys)
+        S2EdgeWithScore(s2Edge, edgeWithScore.score, orderByValues)
+      }
+    val ordered = results.sortBy(_.orderByValues)(TupleMultiOrdering(query.ascendingVals))
 
     val grouped =
       if (query.groupByColumns.isEmpty) Map.empty[StepResult.GroupByKey, StepResult.Values]
-      else results.groupBy { s2EdgeWithScore =>
-        s2EdgeWithScore.s2Edge.toGroupByKey(query.groupByColumns)
+      else {
+        val groupedBy = results.groupBy { s2EdgeWithScore =>
+          s2EdgeWithScore.s2Edge.toGroupByKey(query.groupByColumns)
+        }
+        groupedBy.map { case (k, ls) =>
+//          val scoreSum = ls.foldLeft(0.0) { case (prev, current) => current.score }
+          k -> ls.sortBy(_.orderByValues)(TupleMultiOrdering(query.ascendingVals))
+        }
       }
 
-    StepResult(results = results, grouped = grouped, queryRequestWithResultLs = queryRequestWithResultLs, degreeEdges)
+    StepResult(results = ordered, grouped = grouped,
+      queryRequestWithResultLs = queryRequestWithResultLs, degreeEdges)
   }
 }
-case class S2EdgeWithScore(s2Edge: S2Edge, score: Double)
+
+case class S2EdgeWithScore(s2Edge: S2Edge,
+                           score: Double,
+                           orderByValues: (Any, Any, Any, Any) = StepResult.EmptyOrderByValues)
 
 case class StepResult(results: StepResult.Values,
                       grouped: Map[StepResult.GroupByKey, StepResult.Values],
