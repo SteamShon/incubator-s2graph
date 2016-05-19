@@ -19,11 +19,12 @@
 
 package org.apache.s2graph.core
 import org.apache.s2graph.core.GraphExceptions.LabelNotExistException
+import org.apache.s2graph.core.JSONParser._
 import org.apache.s2graph.core.mysqls.{Label, LabelIndex, LabelMeta}
 import org.apache.s2graph.core.types._
 import org.apache.s2graph.core.utils.logger
 import play.api.libs.json.{JsNumber, Json}
-import JSONParser._
+
 import scala.collection.JavaConversions._
 import scala.util.hashing.MurmurHash3
 
@@ -330,6 +331,24 @@ case class S2Edge(graph: Graph,
   val op = GraphUtil.toOp(operation).getOrElse(throw new RuntimeException(s"$operation is not supported."))
 
   val edge = Edge(srcVertex, tgtVertex, labelWithDir, op = op, version = ts, propsWithTs = propsWithTs)
+
+  def toGroupByKey(selectColumns: Seq[String]): Seq[Option[Any]] = {
+    //TODO: Option should be matched in JsonParser anyTo*
+    for {
+      selectColumn <- selectColumns
+    } yield {
+      selectColumn match {
+        case LabelMeta.from.name => Option(srcId)
+        case LabelMeta.to.name => Option(tgtId)
+        case "label" => Option(labelName)
+        case "direction" => Option(direction)
+        case _ =>
+          props.get(selectColumn)
+      }
+    }
+  }
+
+  val uniqueId = (srcId, tgtId, labelName, direction)
 
 }
 case class EdgeMutate(edgesToDelete: List[IndexEdge] = List.empty[IndexEdge],

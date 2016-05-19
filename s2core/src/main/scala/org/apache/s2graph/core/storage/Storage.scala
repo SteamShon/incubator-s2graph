@@ -533,7 +533,8 @@ abstract class Storage[R](val graph: Graph,
     queryResult.copy(edgeWithScoreLs = edgeWithScoreLs)
   }
 
-  protected def deleteAllFetchedEdgesLs(queryRequestWithResultLs: Seq[QueryRequestWithResult], requestTs: Long): Future[(Boolean, Boolean)] = {
+  protected def deleteAllFetchedEdgesLs(queryRequestWithResultLs: Seq[QueryRequestWithResult],
+                                        requestTs: Long): Future[(Boolean, Boolean)] = {
     val queryResultLs = queryRequestWithResultLs.map(_.queryResult)
     queryResultLs.foreach { queryResult =>
       if (queryResult.isFailure) throw new RuntimeException("fetched result is fallback.")
@@ -576,8 +577,8 @@ abstract class Storage[R](val graph: Graph,
 
   protected def fetchAndDeleteAll(query: Query, requestTs: Long): Future[(Boolean, Boolean)] = {
     val future = for {
-      queryRequestWithResultLs <- getEdges(query)
-      (allDeleted, ret) <- deleteAllFetchedEdgesLs(queryRequestWithResultLs, requestTs)
+      stepResult <- getEdges(query)
+      (allDeleted, ret) <- deleteAllFetchedEdgesLs(stepResult.queryRequestWithResultLs, requestTs)
     } yield {
 //        logger.debug(s"fetchAndDeleteAll: ${allDeleted}, ${ret}")
         (allDeleted, ret)
@@ -1095,11 +1096,9 @@ abstract class Storage[R](val graph: Graph,
     } yield ret
   }
 
-  def getEdges(q: Query): Future[Seq[QueryRequestWithResult]] = {
-    val fallback = {
-      val queryRequest = QueryRequest(query = q, stepIdx = 0, q.vertices.head, queryParam = QueryParam.Empty)
-      Future.successful(q.vertices.map(v => QueryRequestWithResult(queryRequest, QueryResult())))
-    }
+  def getEdges(q: Query): Future[StepResult] = {
+    val fallback = Future.successful(StepResult.Empty)
+
     Try {
 
       if (q.steps.isEmpty) {
@@ -1110,13 +1109,8 @@ abstract class Storage[R](val graph: Graph,
         val startQueryResultLs = QueryResult.fromVertices(q)
         q.steps.foldLeft(Future.successful(startQueryResultLs)) { case (acc, step) =>
             fetchStepFuture(q, acc)
-//          fetchStepFuture(q, acc).map { stepResults =>
-//            step.queryParams.zip(stepResults).foreach { case (qParam, queryRequestWithResult)  =>
-//              val cursor = Base64.getEncoder.encodeToString(queryRequestWithResult.queryResult.tailCursor)
-//              qParam.cursorOpt = Option(cursor)
-//            }
-//            stepResults
-//          }
+        } map { queryRequestWithResultLs =>
+          StepResult(graph, q, queryRequestWithResultLs)
         }
       }
     } recover {

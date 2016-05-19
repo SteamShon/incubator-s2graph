@@ -83,11 +83,15 @@ case class QueryOption(removeCycle: Boolean = false,
 
 case class S2Query(graph: Graph,
                    vertexIds: Seq[(String, String, Any)],
-                   s2Steps: Seq[Seq[S2Request]]) {
+                   s2Steps: Seq[Seq[S2Request]],
+                   options: Map[String, Any]) {
   val startVertices = vertexIds.map { case (s, c, id) => S2Vertex(graph, s, c, id).vertex }
   val steps = s2Steps.map { s2RequestLs =>
     Step(queryParams = s2RequestLs.map { s2Request => s2Request.queryParam } toList)
   }
+  //TODO Parse options into queryOption.
+  val queryOption = QueryOption()
+  val query = Query(startVertices, steps.toIndexedSeq, queryOption)
 }
 case class Query(vertices: Seq[Vertex] = Seq.empty[Vertex],
                  steps: IndexedSeq[Step] = Vector.empty[Step],
@@ -237,14 +241,6 @@ object Step {
   val Delimiter = "|"
 }
 
-//case class S2Step(s2QueryParamLs: Seq[S2Request],
-//                   weights: Map[String, Double]) {
-//  val queryParamLs = s2QueryParamLs.map(_.queryParam)
-//  val labelWeights = weights.map { case (name, w) =>
-//    Label.findByName(name).getOrElse(throw new RuntimeException(s"$name label is not valid label.")).id.get -> w
-//  }
-//  val step = Step(queryParamLs.toList, labelWeights)
-//}
 case class Step(queryParams: List[QueryParam],
                 labelWeights: Map[Int, Double] = Map.empty,
                 //                scoreThreshold: Double = 0.0,

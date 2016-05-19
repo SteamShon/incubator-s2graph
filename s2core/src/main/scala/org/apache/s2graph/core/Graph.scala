@@ -372,7 +372,7 @@ class Graph(_config: Config)(implicit val ec: ExecutionContext) {
   /** select */
   def checkEdges(params: Seq[(Vertex, Vertex, QueryParam)]): Future[Seq[QueryRequestWithResult]] = storage.checkEdges(params)
 
-  def getEdges(q: Query): Future[Seq[QueryRequestWithResult]] = storage.getEdges(q)
+  def getEdges(q: Query): Future[StepResult] = storage.getEdges(q)
 
   def getVertices(vertices: Seq[Vertex]): Future[Seq[Vertex]] = storage.getVertices(vertices)
 

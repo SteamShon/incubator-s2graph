@@ -20,6 +20,7 @@
 package org.apache.s2graph.core.Integrate
 
 import org.apache.s2graph.core.mysqls.{Label, LabelMeta}
+import org.apache.s2graph.core.utils.logger
 import play.api.libs.json.{JsObject, Json}
 
 class CrudTest extends IntegrateCommon {
@@ -208,6 +209,8 @@ class CrudTest extends IntegrateCommon {
             val query = queryJson(serviceName, columnName, labelName, qId, direction, cacheTTL)
 
             val jsResult = TestUtil.getEdgesSync(query)
+
+            logger.debug(s"[Result]: ${Json.prettyPrint(jsResult)}")
 
             val results = jsResult \ "results"
             val deegrees = (jsResult \ "degrees").as[List[JsObject]]

@@ -55,6 +55,8 @@ case class S2Vertex(graph: Graph,
 
     Vertex(srcVertexId, ts, propsInner, op)
   }
+
+  val uniqueId = (serviceName, columnName, id)
 }
 
 case class Vertex(id: VertexId,

@@ -23,6 +23,7 @@ import org.apache.s2graph.core.mysqls.LabelMeta
 import org.apache.s2graph.core.types.{InnerVal, InnerValLikeWithTs}
 
 import scala.collection.Seq
+import scala.collection.mutable.ListBuffer
 
 object QueryResult {
   def fromVertices(query: Query): Seq[QueryRequestWithResult] = {
@@ -45,6 +46,7 @@ object QueryResult {
     }
   }
 }
+/** inner traverse */
 case class QueryRequestWithResult(queryRequest: QueryRequest,
                                   queryResult: QueryResult)
 
@@ -65,15 +67,62 @@ case class EdgeWithScore(edge: Edge, score: Double)
 
 
 
-/**
- * define single I/O fetched related edges from vertex in QueryRequest.
- * Result of fetch regarding to given queryParam.
- * */
-case class FetchResult(queryRequest: QueryRequest,
-                       edgeWithScoreLs: Seq[EdgeWithScore] = Nil,
-                       tailCursor: Array[Byte] = Array.empty,
-                       timestamp: Long = System.currentTimeMillis(),
-                       isFailure: Boolean = false)
+/** result */
 
+object StepResult {
+  type Values = Seq[S2EdgeWithScore]
+  type GroupByKey = Seq[Option[Any]]
+  val Empty = StepResult(Nil, Map.empty[GroupByKey, Values], Nil, Nil)
 
-case class S2EdgeWithScore(s2Edge: Edge, score: Double)
+  /** TODO implement this. */
+  def filterOut(baseStepResult: StepResult, filterOutStepResult: StepResult): StepResult = {
+    val filterOutEdges = filterOutStepResult.results.map(_.s2Edge.uniqueId).toSet
+    val filteredResults = baseStepResult.results.filter(t => !filterOutEdges.contains(t.s2Edge.uniqueId))
+
+    val grouped = for {
+      (key, values) <- baseStepResult.grouped
+    } yield key -> values.filter(v => !filterOutEdges.contains(v.s2Edge.uniqueId))
+
+    StepResult(results = filteredResults, grouped = grouped, queryRequestWithResultLs = Nil, baseStepResult.degreeEdges)
+  }
+  def merge(baseStepResult: StepResult, otherStepResult: StepResult): StepResult = {
+    baseStepResult
+  }
+
+  def filterEdgeWithScoreLs(graph: Graph,
+                            result: QueryResult,
+                            degreeEdges: ListBuffer[S2EdgeWithScore]): Seq[EdgeWithScore] = {
+    val head = result.edgeWithScoreLs.head
+    if (head.edge.isDegree) {
+      degreeEdges += S2EdgeWithScore(S2Edge(graph, head.edge), head.score)
+      result.edgeWithScoreLs.tail
+    } else {
+      result.edgeWithScoreLs
+    }
+  }
+  //TODO: OrderBy, Select is not implemented.
+  def apply(graph: Graph,
+            query: Query,
+            queryRequestWithResultLs: Seq[QueryRequestWithResult]): StepResult = {
+    val degreeEdges = new ListBuffer[S2EdgeWithScore]()
+    val results = for {
+      requestWithResult <- queryRequestWithResultLs
+      (request, result) = QueryRequestWithResult.unapply(requestWithResult).get if result.edgeWithScoreLs.nonEmpty
+      edgeWithScore <- filterEdgeWithScoreLs(graph, result, degreeEdges)
+    } yield S2EdgeWithScore(S2Edge.apply(graph, edgeWithScore.edge), edgeWithScore.score)
+
+    val grouped =
+      if (query.groupByColumns.isEmpty) Map.empty[StepResult.GroupByKey, StepResult.Values]
+      else results.groupBy { s2EdgeWithScore =>
+        s2EdgeWithScore.s2Edge.toGroupByKey(query.groupByColumns)
+      }
+
+    StepResult(results = results, grouped = grouped, queryRequestWithResultLs = queryRequestWithResultLs, degreeEdges)
+  }
+}
+case class S2EdgeWithScore(s2Edge: S2Edge, score: Double)
+
+case class StepResult(results: StepResult.Values,
+                      grouped: Map[StepResult.GroupByKey, StepResult.Values],
+                      queryRequestWithResultLs: Seq[QueryRequestWithResult],
+                      degreeEdges: StepResult.Values)
