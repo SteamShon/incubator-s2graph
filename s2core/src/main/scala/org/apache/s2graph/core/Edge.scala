@@ -289,6 +289,20 @@ case class Edge(srcVertex: Vertex,
     ret.mkString("\t")
   }
 }
+
+object S2Edge {
+  def apply(graph: Graph, edge: Edge): S2Edge = {
+    S2Edge(graph,
+      edge.srcVertex.innerIdVal,
+      edge.tgtVertex.innerIdVal,
+      edge.label.label,
+      GraphUtil.fromDirection(edge.labelWithDir.dir),
+      edge.label.innerValsWithTsToProps(edge.propsWithTs),
+      edge.ts,
+      GraphUtil.fromOp(edge.op)
+    )
+  }
+}
 case class S2Edge(graph: Graph,
                   srcId: Any,
                   tgtId: Any,

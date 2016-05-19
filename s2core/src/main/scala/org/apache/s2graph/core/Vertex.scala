@@ -19,10 +19,23 @@
 
 package org.apache.s2graph.core
 
+import org.apache.s2graph.core.JSONParser._
 import org.apache.s2graph.core.mysqls.{ColumnMeta, Service, ServiceColumn}
 import org.apache.s2graph.core.types.{InnerVal, InnerValLike, SourceVertexId, VertexId}
-import JSONParser._
 import play.api.libs.json.Json
+
+object S2Vertex {
+  def apply(graph: Graph, vertex: Vertex): S2Vertex = {
+    S2Vertex(graph,
+      vertex.serviceName,
+      vertex.serviceColumn.columnName,
+      vertex.innerIdVal,
+      vertex.serviceColumn.innerValsToProps(vertex.props),
+      vertex.ts,
+      GraphUtil.fromOp(vertex.op)
+    )
+  }
+}
 
 case class S2Vertex(graph: Graph,
                     serviceName: String,
@@ -51,6 +64,8 @@ case class Vertex(id: VertexId,
                   belongLabelIds: Seq[Int] = Seq.empty) extends GraphElement {
 
   val innerId = id.innerId
+
+  val innerIdVal = innerId.value
 
   def schemaVer = serviceColumn.schemaVersion
 

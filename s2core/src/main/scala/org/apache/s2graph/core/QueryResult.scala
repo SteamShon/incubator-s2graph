@@ -45,7 +45,8 @@ object QueryResult {
     }
   }
 }
-case class QueryRequestWithResult(queryRequest: QueryRequest, queryResult: QueryResult)
+case class QueryRequestWithResult(queryRequest: QueryRequest,
+                                  queryResult: QueryResult)
 
 case class QueryRequest(query: Query,
                         stepIdx: Int,

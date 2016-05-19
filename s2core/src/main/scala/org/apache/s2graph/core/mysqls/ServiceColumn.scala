@@ -98,6 +98,7 @@ case class ServiceColumn(id: Option[Int],
 
   lazy val service = Service.findById(serviceId)
   lazy val metas = ColumnMeta.findAllByColumn(id.get)
+  lazy val metasMap = metas.map { meta => meta.seq.toInt -> meta } toMap
   lazy val metasInvMap = metas.map { meta => meta.name -> meta} toMap
   lazy val metaNamesMap = (ColumnMeta.lastModifiedAtColumn :: metas).map(x => (x.seq.toInt, x.name)) toMap
   lazy val toJson = Json.obj("serviceName" -> service.serviceName, "columnName" -> columnName, "columnType" -> columnType)
@@ -114,5 +115,22 @@ case class ServiceColumn(id: Option[Int],
                              ts: Long = System.currentTimeMillis()): Map[Int, InnerValLikeWithTs] =
     propsToInnerVals(props).map(kv => kv._1 -> InnerValLikeWithTs(kv._2, ts))
 
+  def innerValsToProps(props: Map[Int, InnerValLike]): Map[String, Any] = {
+    for {
+      (k, v) <- props
+      columnMeta <- metasMap.get(k)
+    } yield {
+      columnMeta.name -> v.value
+    }
+  }
+
+  def innerValsWithTsToProps(props: Map[Int, InnerValLikeWithTs]): Map[String, Any] = {
+    for {
+      (k, v) <- props
+      columnMeta <- metasMap.get(k)
+    } yield {
+      columnMeta.name -> v.innerVal.value
+    }
+  }
 
 }
