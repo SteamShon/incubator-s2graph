@@ -41,7 +41,7 @@ case class S2Vertex(graph: Graph,
                     serviceName: String,
                     columnName: String,
                     id: Any,
-                    props: Map[String, Any],
+                    props: Map[String, Any] = Map.empty,
                     ts: Long = System.currentTimeMillis(),
                     operation: String = "insert") {
   val vertex = {

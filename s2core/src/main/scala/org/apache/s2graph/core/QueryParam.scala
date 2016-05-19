@@ -21,6 +21,7 @@ package org.apache.s2graph.core
 
 import com.google.common.hash.Hashing
 import org.apache.hadoop.hbase.util.Bytes
+import org.apache.s2graph.core.GraphExceptions.LabelNotExistException
 import org.apache.s2graph.core.mysqls.{Label, LabelIndex, LabelMeta}
 import org.apache.s2graph.core.parsers.{Where, WhereParser}
 import org.apache.s2graph.core.types.{HBaseSerializable, InnerVal, InnerValLike, LabelWithDirection}
@@ -29,6 +30,9 @@ import play.api.libs.json.{JsNull, JsNumber, JsValue, Json}
 
 import scala.util.hashing.MurmurHash3
 import scala.util.{Success, Try}
+
+
+
 
 object Query {
   val initialScore = 1.0
@@ -69,7 +73,22 @@ case class QueryOption(removeCycle: Boolean = false,
                        scoreThreshold: Double = Double.MinValue,
                        returnDegree: Boolean = true)
 
+//S2Query([("service", "column", "a"), ("service", "column", "b"), ("s", "c", "c")], Seq(
+//  Seq(S2Request("test_label"),
+//      S2Request("test_label2", "out", kvs)),
+//  Seq(S2Request("l2", "in", kvs),
+//      S2Request("l3", "out", kvs))
+//))
 
+
+case class S2Query(graph: Graph,
+                   vertexIds: Seq[(String, String, Any)],
+                   s2Steps: Seq[Seq[S2Request]]) {
+  val startVertices = vertexIds.map { case (s, c, id) => S2Vertex(graph, s, c, id).vertex }
+  val steps = s2Steps.map { s2RequestLs =>
+    Step(queryParams = s2RequestLs.map { s2Request => s2Request.queryParam } toList)
+  }
+}
 case class Query(vertices: Seq[Vertex] = Seq.empty[Vertex],
                  steps: IndexedSeq[Step] = Vector.empty[Step],
                  queryOption: QueryOption = QueryOption(),
@@ -218,6 +237,14 @@ object Step {
   val Delimiter = "|"
 }
 
+//case class S2Step(s2QueryParamLs: Seq[S2Request],
+//                   weights: Map[String, Double]) {
+//  val queryParamLs = s2QueryParamLs.map(_.queryParam)
+//  val labelWeights = weights.map { case (name, w) =>
+//    Label.findByName(name).getOrElse(throw new RuntimeException(s"$name label is not valid label.")).id.get -> w
+//  }
+//  val step = Step(queryParamLs.toList, labelWeights)
+//}
 case class Step(queryParams: List[QueryParam],
                 labelWeights: Map[Int, Double] = Map.empty,
                 //                scoreThreshold: Double = 0.0,
@@ -256,12 +283,6 @@ case class VertexParam(vertices: Seq[Vertex]) {
 
 }
 
-//object RankParam {
-//  def apply(labelId: Int, keyAndWeights: Seq[(Byte, Double)]) = {
-//    new RankParam(labelId, keyAndWeights)
-//  }
-//}
-
 case class RankParam(labelId: Int, var keySeqAndWeights: Seq[(Byte, Double)] = Seq.empty[(Byte, Double)]) {
   // empty => Count
   lazy val rankKeysWeightsMap = keySeqAndWeights.toMap
@@ -286,6 +307,17 @@ object QueryParam {
   val Delimiter = ","
 }
 
+case class S2Request(labelName: String,
+                        direction: String = "out",
+                        ts: Long = System.currentTimeMillis(),
+                        options: Map[String, Any] = Map.empty) {
+  val label = Label.findByName(labelName).getOrElse(throw new LabelNotExistException(labelName))
+  val dir = GraphUtil.toDir(direction).getOrElse(throw new RuntimeException(s"$direction is not supported."))
+  val labelWithDir = LabelWithDirection(label.id.get, dir)
+  //TODO: need to merge options into queryParam.
+  val queryParam = QueryParam(labelWithDir, ts)
+
+}
 case class QueryParam(labelWithDir: LabelWithDirection, timestamp: Long = System.currentTimeMillis()) {
 
   import HBaseSerializable._

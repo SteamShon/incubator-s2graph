@@ -60,3 +60,20 @@ case class QueryResult(edgeWithScoreLs: Seq[EdgeWithScore] = Nil,
                        isFailure: Boolean = false)
 
 case class EdgeWithScore(edge: Edge, score: Double)
+
+
+
+
+
+/**
+ * define single I/O fetched related edges from vertex in QueryRequest.
+ * Result of fetch regarding to given queryParam.
+ * */
+case class FetchResult(queryRequest: QueryRequest,
+                       edgeWithScoreLs: Seq[EdgeWithScore] = Nil,
+                       tailCursor: Array[Byte] = Array.empty,
+                       timestamp: Long = System.currentTimeMillis(),
+                       isFailure: Boolean = false)
+
+
+case class S2EdgeWithScore(s2Edge: Edge, score: Double)
