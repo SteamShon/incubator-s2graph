@@ -220,13 +220,13 @@ class RestHandler(graph: Graph)(implicit ec: ExecutionContext) {
   private def getVertices(jsValue: JsValue) = {
     val jsonQuery = jsValue
     val ts = System.currentTimeMillis()
-    val props = "{}"
+    val props = Map.empty[String, Any]
 
     val vertices = jsonQuery.as[List[JsValue]].flatMap { js =>
       val serviceName = (js \ "serviceName").as[String]
       val columnName = (js \ "columnName").as[String]
       for (id <- (js \ "ids").asOpt[List[JsValue]].getOrElse(List.empty[JsValue])) yield {
-        Management.toVertex(ts, "insert", id.toString, serviceName, columnName, props)
+        Management.toVertex(graph, ts, "insert", id.toString, serviceName, columnName, props)
       }
     }
 

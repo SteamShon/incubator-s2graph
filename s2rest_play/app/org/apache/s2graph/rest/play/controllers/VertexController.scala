@@ -41,7 +41,7 @@ object VertexController extends Controller {
     if (!Config.IS_WRITE_SERVER) Future.successful(Unauthorized)
     else {
       try {
-        val vertices = requestParser.toVertices(jsValue, operation, serviceNameOpt, columnNameOpt)
+        val vertices = requestParser.toVertices(s2, jsValue, operation, serviceNameOpt, columnNameOpt)
 
         for (vertex <- vertices) {
           if (vertex.isAsync)

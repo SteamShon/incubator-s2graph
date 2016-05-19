@@ -197,20 +197,14 @@ object Management {
 
   }
 
-  def toVertex(ts: Long, operation: String, id: String, serviceName: String, columnName: String, props: String): Vertex = {
-    Service.findByName(serviceName) match {
-      case None => throw new RuntimeException(s"$serviceName does not exist. create service first.")
-      case Some(service) =>
-        ServiceColumn.find(service.id.get, columnName) match {
-          case None => throw new RuntimeException(s"$columnName is not exist. create service column first.")
-          case Some(col) =>
-            val idVal = toInnerVal(id, col.columnType, col.schemaVersion)
-            val op = tryOption(operation, GraphUtil.toOp)
-            val jsObject = Json.parse(props).asOpt[JsObject].getOrElse(Json.obj())
-            val parsedProps = toProps(col, jsObject).toMap
-            Vertex(VertexId(col.id.get, idVal), ts, parsedProps, op = op)
-        }
-    }
+  def toVertex(graph: Graph,
+               ts: Long,
+               operation: String,
+               id: String,
+               serviceName: String,
+               columnName: String,
+               props: Map[String, Any]): Vertex = {
+    S2Vertex(graph, serviceName, columnName, id, props, ts, operation).vertex
   }
 
   def toProps(column: ServiceColumn, js: JsObject): Seq[(Int, InnerValLike)] = {

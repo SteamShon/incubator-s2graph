@@ -300,7 +300,7 @@ object Graph {
       }
       toEdge(graph, parts)
     } else if (logType == "vertex" | logType == "v") {
-      toVertex(parts)
+      toVertex(graph, parts)
     } else {
       throw new GraphExceptions.JsonParseException("log type is not exist in log.")
     }
@@ -313,16 +313,14 @@ object Graph {
   } get
 
 
-  def toVertex(s: String): Option[Vertex] = {
-    toVertex(GraphUtil.split(s))
+  def toVertex(graph: Graph, s: String): Option[Vertex] = {
+    toVertex(graph, GraphUtil.split(s))
   }
 
   def toEdge(graph: Graph, s: String): Option[Edge] = {
     toEdge(graph, GraphUtil.split(s))
   }
 
-  //"1418342849000\tu\te\t3286249\t71770\ttalk_friend\t{\"is_hidden\":false}"
-  //{"from":1,"to":101,"label":"graph_test","props":{"time":-1, "weight":10},"timestamp":1417616431},
   def toEdge(graph: Graph, parts: Array[String]): Option[Edge] = Try {
     val (ts, operation, logType, srcId, tgtId, label) = (parts(0), parts(1), parts(2), parts(3), parts(4), parts(5))
     val props = if (parts.length >= 7) fromJsonToProperties(Json.parse(parts(6)).asOpt[JsObject].getOrElse(Json.obj())) else Map.empty[String, Any]
@@ -338,11 +336,10 @@ object Graph {
       throw e
   } get
 
-  //"1418342850000\ti\tv\t168756793\ttalk_user_id\t{\"country_iso\":\"KR\"}"
-  def toVertex(parts: Array[String]): Option[Vertex] = Try {
+  def toVertex(graph: Graph, parts: Array[String]): Option[Vertex] = Try {
     val (ts, operation, logType, srcId, serviceName, colName) = (parts(0), parts(1), parts(2), parts(3), parts(4), parts(5))
-    val props = if (parts.length >= 7) parts(6) else "{}"
-    Some(Management.toVertex(ts.toLong, operation, srcId, serviceName, colName, props))
+    val props = if (parts.length >= 7) fromJsonToProperties(Json.parse(parts(6)).asOpt[JsObject].getOrElse(Json.obj())) else Map.empty[String, Any]
+    Some(Management.toVertex(graph, ts.toLong, operation, srcId, serviceName, colName, props))
   } recover {
     case e: Throwable =>
       logger.error(s"toVertex: $e", e)

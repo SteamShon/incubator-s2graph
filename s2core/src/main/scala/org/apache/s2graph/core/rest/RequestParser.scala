@@ -488,17 +488,17 @@ class RequestParser(config: Config) {
     }
   }
 
-  def toVertices(jsValue: JsValue, operation: String, serviceName: Option[String] = None, columnName: Option[String] = None) = {
-    toJsValues(jsValue).map(toVertex(_, operation, serviceName, columnName))
+  def toVertices(graph: Graph, jsValue: JsValue, operation: String, serviceName: Option[String] = None, columnName: Option[String] = None) = {
+    toJsValues(jsValue).map(toVertex(graph, _, operation, serviceName, columnName))
   }
 
-  def toVertex(jsValue: JsValue, operation: String, serviceName: Option[String] = None, columnName: Option[String] = None): Vertex = {
+  def toVertex(graph: Graph, jsValue: JsValue, operation: String, serviceName: Option[String] = None, columnName: Option[String] = None): Vertex = {
     val id = parse[JsValue](jsValue, "id")
     val ts = parse[Option[Long]](jsValue, "timestamp").getOrElse(System.currentTimeMillis())
     val sName = if (serviceName.isEmpty) parse[String](jsValue, "serviceName") else serviceName.get
     val cName = if (columnName.isEmpty) parse[String](jsValue, "columnName") else columnName.get
-    val props = (jsValue \ "props").asOpt[JsObject].getOrElse(Json.obj())
-    Management.toVertex(ts, operation, id.toString, sName, cName, props.toString)
+    val props = fromJsonToProperties((jsValue \ "props").asOpt[JsObject].getOrElse(Json.obj()))
+    Management.toVertex(graph, ts, operation, id.toString, sName, cName, props)
   }
 
   def toPropElements(jsObj: JsValue) = Try {

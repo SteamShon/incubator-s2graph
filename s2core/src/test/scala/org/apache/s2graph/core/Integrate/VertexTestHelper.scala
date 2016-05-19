@@ -39,7 +39,7 @@ class VertexTestHelper extends IntegrateCommon {
     val payload = Json.parse(Json.toJson(data).toString)
     println(payload)
 
-    val vertices = parser.toVertices(payload, "insert", Option(serviceName), Option(columnName))
+    val vertices = parser.toVertices(graph, payload, "insert", Option(serviceName), Option(columnName))
     Await.result(graph.mutateVertices(vertices, withWait = true), HttpRequestWaitingTime)
 
     val res = graph.getVertices(vertices).map { vertices =>

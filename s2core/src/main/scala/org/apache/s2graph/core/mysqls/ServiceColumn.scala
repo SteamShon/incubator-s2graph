@@ -23,6 +23,8 @@ package org.apache.s2graph.core.mysqls
  * Created by shon on 6/3/15.
  */
 
+import org.apache.s2graph.core.JSONParser._
+import org.apache.s2graph.core.types.{InnerValLikeWithTs, InnerValLike}
 import play.api.libs.json.Json
 import scalikejdbc._
 object ServiceColumn extends Model[ServiceColumn] {
@@ -88,13 +90,29 @@ object ServiceColumn extends Model[ServiceColumn] {
     })
   }
 }
-case class ServiceColumn(id: Option[Int], serviceId: Int, columnName: String, columnType: String, schemaVersion: String) {
+case class ServiceColumn(id: Option[Int],
+                         serviceId: Int,
+                         columnName: String,
+                         columnType: String,
+                         schemaVersion: String) {
 
   lazy val service = Service.findById(serviceId)
   lazy val metas = ColumnMeta.findAllByColumn(id.get)
   lazy val metasInvMap = metas.map { meta => meta.name -> meta} toMap
   lazy val metaNamesMap = (ColumnMeta.lastModifiedAtColumn :: metas).map(x => (x.seq.toInt, x.name)) toMap
   lazy val toJson = Json.obj("serviceName" -> service.serviceName, "columnName" -> columnName, "columnType" -> columnType)
+
+  def propsToInnerVals(props: Map[String, Any]): Map[Int, InnerValLike] = {
+    for {
+      (k, v) <- props
+      labelMeta <- metasInvMap.get(k)
+      innerVal = toInnerVal(v.toString, labelMeta.dataType, schemaVersion)
+    } yield labelMeta.seq.toInt -> innerVal
+  }
+
+  def propsToInnerValsWithTs(props: Map[String, Any],
+                             ts: Long = System.currentTimeMillis()): Map[Int, InnerValLikeWithTs] =
+    propsToInnerVals(props).map(kv => kv._1 -> InnerValLikeWithTs(kv._2, ts))
 
 
 }

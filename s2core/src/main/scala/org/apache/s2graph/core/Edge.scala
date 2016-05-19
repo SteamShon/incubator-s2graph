@@ -29,7 +29,7 @@ import scala.collection.JavaConversions._
 import scala.util.hashing.MurmurHash3
 
 
-case class SnapshotEdge(srcVertex: Vertex,
+private[core] case class SnapshotEdge(srcVertex: Vertex,
                         tgtVertex: Vertex,
                         labelWithDir: LabelWithDirection,
                         op: Byte,
@@ -65,7 +65,7 @@ case class SnapshotEdge(srcVertex: Vertex,
   }
 }
 
-case class IndexEdge(srcVertex: Vertex,
+private[core] case class IndexEdge(srcVertex: Vertex,
                      tgtVertex: Vertex,
                      labelWithDir: LabelWithDirection,
                      op: Byte,
@@ -297,7 +297,7 @@ case class S2Edge(graph: Graph,
                   direction: String,
                   props: Map[String, Any],
                   ts: Long = System.currentTimeMillis(),
-                  operation: String = "insert") {
+                  operation: String = "insert") extends GraphElement {
 
   val label = Label.findByName(labelName).getOrElse(throw new LabelNotExistException(labelName))
 
@@ -316,7 +316,17 @@ case class S2Edge(graph: Graph,
   val propsWithTs = label.propsToInnerValsWithTs(propsPlusTs, ts)
   val op = GraphUtil.toOp(operation).getOrElse(throw new RuntimeException(s"$operation is not supported."))
 
-  def edge = Edge(srcVertex, tgtVertex, labelWithDir, op = op, version = ts, propsWithTs = propsWithTs)
+  val edge = Edge(srcVertex, tgtVertex, labelWithDir, op = op, version = ts, propsWithTs = propsWithTs)
+
+  override def serviceName: String = edge.serviceName
+
+  override def toLogString(): String = edge.toLogString
+
+  override def isAsync: Boolean = edge.isAsync
+
+  override def queueKey: String = edge.queueKey
+
+  override def queuePartitionKey: String = edge.queuePartitionKey
 }
 case class EdgeMutate(edgesToDelete: List[IndexEdge] = List.empty[IndexEdge],
                       edgesToInsert: List[IndexEdge] = List.empty[IndexEdge],

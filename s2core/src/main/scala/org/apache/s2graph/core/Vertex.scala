@@ -21,7 +21,36 @@ package org.apache.s2graph.core
 
 import org.apache.s2graph.core.mysqls.{ColumnMeta, Service, ServiceColumn}
 import org.apache.s2graph.core.types.{InnerVal, InnerValLike, SourceVertexId, VertexId}
+import JSONParser._
 import play.api.libs.json.Json
+
+case class S2Vertex(graph: Graph,
+                    serviceName: String,
+                    columnName: String,
+                    id: Any,
+                    props: Map[String, Any],
+                    ts: Long = System.currentTimeMillis(),
+                    operation: String = "insert") extends GraphElement {
+  val vertex = {
+    val service = Service.findByName(serviceName).getOrElse(throw new RuntimeException(s"$serviceName is not found."))
+    val column = ServiceColumn.find(service.id.get, columnName).getOrElse(throw new RuntimeException(s"$columnName is not found."))
+    val op = GraphUtil.toOp(operation).getOrElse(throw new RuntimeException(s"$operation is not supported."))
+
+    val srcVertexId = VertexId(column.id.get, toInnerVal(id.toString, column.columnType, column.schemaVersion))
+    val propsInner = column.propsToInnerVals(props) ++
+      Map(ColumnMeta.timeStampSeq.toInt -> InnerVal.withLong(ts, column.schemaVersion))
+
+    Vertex(srcVertexId, ts, propsInner, op)
+  }
+
+  override def isAsync: Boolean = false
+
+  override def toLogString(): String = vertex.toLogString()
+
+  override def queueKey: String = vertex.queueKey
+
+  override def queuePartitionKey: String = vertex.queuePartitionKey
+}
 
 case class Vertex(id: VertexId,
                   ts: Long = System.currentTimeMillis(),
@@ -114,7 +143,4 @@ object Vertex {
 
   def isLabelId(propKey: Int): Boolean = propKey > Byte.MaxValue
 
-  //  val emptyVertex = Vertex(new CompositeId(CompositeId.defaultColId, CompositeId.defaultInnerId, false, true),
-  //    System.currentTimeMillis())
-  def fromString(s: String): Option[Vertex] = Graph.toVertex(s)
 }

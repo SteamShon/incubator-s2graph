@@ -64,7 +64,7 @@ object EdgeController extends Controller {
     else {
       try {
         logger.debug(s"$jsValue")
-        val (edges, jsOrgs) = requestParser.toEdgesWithOrg(jsValue, operation)
+        val (edges, jsOrgs) = requestParser.toEdgesWithOrg(s2, jsValue, operation)
 
         for ((edge, orgJs) <- edges.zip(jsOrgs)) {
           if (edge.isAsync)
@@ -177,7 +177,7 @@ object EdgeController extends Controller {
 
   def incrementCounts() = withHeaderAsync(jsonParser) { request =>
     val jsValue = request.body
-    val edges = requestParser.toEdges(jsValue, "incrementCount")
+    val edges = requestParser.toEdges(s2, jsValue, "incrementCount")
 
     s2.incrementCounts(edges, withWait = true).map { results =>
       val json = results.map { case (isSuccess, resultCount) =>
