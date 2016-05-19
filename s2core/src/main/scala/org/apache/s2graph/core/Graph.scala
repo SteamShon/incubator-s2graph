@@ -28,7 +28,8 @@ import org.apache.s2graph.core.parsers.WhereParser
 import org.apache.s2graph.core.storage.hbase.AsynchbaseStorage
 import org.apache.s2graph.core.types.{InnerVal, LabelWithDirection}
 import org.apache.s2graph.core.utils.logger
-
+import JSONParser._
+import play.api.libs.json.{JsObject, Json}
 import scala.collection.JavaConversions._
 import scala.collection._
 import scala.collection.mutable.ListBuffer
@@ -324,11 +325,11 @@ object Graph {
   //{"from":1,"to":101,"label":"graph_test","props":{"time":-1, "weight":10},"timestamp":1417616431},
   def toEdge(graph: Graph, parts: Array[String]): Option[Edge] = Try {
     val (ts, operation, logType, srcId, tgtId, label) = (parts(0), parts(1), parts(2), parts(3), parts(4), parts(5))
-    val props = if (parts.length >= 7) parts(6) else "{}"
+    val props = if (parts.length >= 7) fromJsonToProperties(Json.parse(parts(6)).asOpt[JsObject].getOrElse(Json.obj())) else Map.empty[String, Any]
     val tempDirection = if (parts.length >= 8) parts(7) else "out"
     val direction = if (tempDirection != "out" && tempDirection != "in") "out" else tempDirection
 
-    val edge = Management.toEdge(ts.toLong, operation, srcId, tgtId, label, direction, props)
+    val edge = Management.toEdge(graph, ts.toLong, operation, srcId, tgtId, label, direction, props)
     //            logger.debug(s"toEdge: $edge")
     Some(edge)
   } recover {

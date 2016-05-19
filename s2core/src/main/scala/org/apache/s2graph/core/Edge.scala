@@ -312,7 +312,8 @@ case class S2Edge(graph: Graph,
   val dir = GraphUtil.toDir(direction).getOrElse(throw new RuntimeException(s"$direction is not supported."))
 
   val labelWithDir = LabelWithDirection(label.id.get, dir)
-  val propsWithTs = label.propsToInnerValsWithTs(props, ts)
+  val propsPlusTs = props ++ Map(LabelMeta.timestamp.name -> ts)
+  val propsWithTs = label.propsToInnerValsWithTs(propsPlusTs, ts)
   val op = GraphUtil.toOp(operation).getOrElse(throw new RuntimeException(s"$operation is not supported."))
 
   def edge = Edge(srcVertex, tgtVertex, labelWithDir, op = op, version = ts, propsWithTs = propsWithTs)

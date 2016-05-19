@@ -451,21 +451,21 @@ class RequestParser(config: Config) {
 
   }
 
-  def toEdgesWithOrg(jsValue: JsValue, operation: String): (List[Edge], List[JsValue]) = {
+  def toEdgesWithOrg(graph: Graph, jsValue: JsValue, operation: String): (List[Edge], List[JsValue]) = {
     val jsValues = toJsValues(jsValue)
-    val edges = jsValues.flatMap(toEdge(_, operation))
+    val edges = jsValues.flatMap(toEdge(graph, _, operation))
 
     (edges, jsValues)
   }
 
-  def toEdges(jsValue: JsValue, operation: String): List[Edge] = {
+  def toEdges(graph: Graph, jsValue: JsValue, operation: String): List[Edge] = {
     toJsValues(jsValue).flatMap { edgeJson =>
-      toEdge(edgeJson, operation)
+      toEdge(graph, edgeJson, operation)
     }
   }
 
 
-  private def toEdge(jsValue: JsValue, operation: String): List[Edge] = {
+  private def toEdge(graph: Graph, jsValue: JsValue, operation: String): List[Edge] = {
 
     def parseId(js: JsValue) = js match {
       case s: JsString => s.as[String]
@@ -479,12 +479,12 @@ class RequestParser(config: Config) {
     val label = parse[String](jsValue, "label")
     val timestamp = parse[Long](jsValue, "timestamp")
     val direction = parse[Option[String]](jsValue, "direction").getOrElse("")
-    val props = (jsValue \ "props").asOpt[JsValue].getOrElse("{}")
+    val propsJson = (jsValue \ "props").asOpt[JsObject].getOrElse(Json.obj())
     for {
       srcId <- srcIds
       tgtId <- tgtIds
     } yield {
-      Management.toEdge(timestamp, operation, srcId, tgtId, label, direction, props.toString)
+      Management.toEdge(graph, timestamp, operation, srcId, tgtId, label, direction, fromJsonToProperties(propsJson))
     }
   }
 

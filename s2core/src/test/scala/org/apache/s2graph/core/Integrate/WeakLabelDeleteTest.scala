@@ -48,7 +48,7 @@ class WeakLabelDeleteTest extends IntegrateCommon with BeforeAndAfterEach {
     /** expect 4 edges */
     (result \ "results").as[List[JsValue]].size should be(4)
     val edges = (result \ "results").as[List[JsObject]]
-    val edgesToStore = parser.toEdges(Json.toJson(edges), "delete")
+    val edgesToStore = parser.toEdges(graph, Json.toJson(edges), "delete")
     val rets = graph.mutateEdges(edgesToStore, withWait = true)
     Await.result(rets, Duration(20, TimeUnit.MINUTES))
 

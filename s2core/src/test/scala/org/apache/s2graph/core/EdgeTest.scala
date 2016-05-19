@@ -23,6 +23,8 @@ import org.apache.s2graph.core.mysqls.LabelMeta
 import org.apache.s2graph.core.types.{InnerVal, InnerValLikeWithTs, VertexId}
 import org.apache.s2graph.core.utils.logger
 import org.scalatest.FunSuite
+import play.api.libs.json.{JsObject, Json}
+import JSONParser._
 
 class EdgeTest extends FunSuite with TestCommon with TestCommonWithModels {
   initTests()
@@ -39,7 +41,8 @@ class EdgeTest extends FunSuite with TestCommon with TestCommonWithModels {
     val (srcId, tgtId, labelName) = ("1", "2", testLabelName)
 
     val bulkEdge = (for ((ts, op, props) <- bulkQueries) yield {
-      Management.toEdge(ts.toLong, op, srcId, tgtId, labelName, "out", props).toLogString
+      val properties = fromJsonToProperties(Json.parse(props).as[JsObject])
+      Management.toEdge(graph, ts.toLong, op, srcId, tgtId, labelName, "out", properties).toLogString
     }).mkString("\n")
 
     val expected = Seq(
