@@ -80,8 +80,9 @@ object AsynchbaseStorage {
 }
 
 
-class AsynchbaseStorage(override val config: Config)(implicit ec: ExecutionContext)
-  extends Storage[Deferred[QueryRequestWithResult]](config) {
+class AsynchbaseStorage(override val graph: Graph,
+                        override val config: Config)(implicit ec: ExecutionContext)
+  extends Storage[Deferred[QueryRequestWithResult]](graph, config) {
 
   import Extensions.DeferOps
 

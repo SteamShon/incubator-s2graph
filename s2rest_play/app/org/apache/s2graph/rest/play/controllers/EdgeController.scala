@@ -101,7 +101,7 @@ object EdgeController extends Controller {
     var edgeCnt = 0L
     try {
       val elements =
-        for (edgeStr <- edgeStrs; str <- GraphUtil.parseString(edgeStr); element <- Graph.toGraphElement(str)) yield {
+        for (edgeStr <- edgeStrs; str <- GraphUtil.parseString(edgeStr); element <- Graph.toGraphElement(s2, str)) yield {
           element match {
             case v: Vertex => vertexCnt += 1
             case e: Edge => edgeCnt += 1

@@ -38,7 +38,8 @@ import scala.collection.mutable.ArrayBuffer
 import scala.concurrent.{ExecutionContext, Future}
 import scala.util.{Random, Try}
 
-abstract class Storage[R](val config: Config)(implicit ec: ExecutionContext) {
+abstract class Storage[R](val graph: Graph,
+                          val config: Config)(implicit ec: ExecutionContext) {
   import HBaseType._
 
   /** storage dependent configurations */

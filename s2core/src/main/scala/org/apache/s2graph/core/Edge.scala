@@ -19,6 +19,7 @@
 
 package org.apache.s2graph.core
 
+import org.apache.s2graph.core.GraphExceptions.LabelNotExistException
 import org.apache.s2graph.core.mysqls.{Label, LabelIndex, LabelMeta}
 import org.apache.s2graph.core.types._
 import org.apache.s2graph.core.utils.logger
@@ -289,7 +290,33 @@ case class Edge(srcVertex: Vertex,
     ret.mkString("\t")
   }
 }
+case class S2Edge(graph: Graph,
+                  srcId: Any,
+                  tgtId: Any,
+                  labelName: String,
+                  direction: String,
+                  props: Map[String, Any],
+                  ts: Long = System.currentTimeMillis(),
+                  operation: String = "insert") {
 
+  val label = Label.findByName(labelName).getOrElse(throw new LabelNotExistException(labelName))
+
+  val srcVertexId = toInnerVal(srcId.toString, label.srcColumn.columnType, label.schemaVersion)
+  val tgtVertexId = toInnerVal(tgtId.toString, label.tgtColumn.columnType, label.schemaVersion)
+
+  val srcColId = label.srcColumn.id.get
+  val tgtColId = label.tgtColumn.id.get
+
+  val srcVertex = Vertex(SourceVertexId(srcColId, srcVertexId), System.currentTimeMillis())
+  val tgtVertex = Vertex(TargetVertexId(tgtColId, tgtVertexId), System.currentTimeMillis())
+  val dir = GraphUtil.toDir(direction).getOrElse(throw new RuntimeException(s"$direction is not supported."))
+
+  val labelWithDir = LabelWithDirection(label.id.get, dir)
+  val propsWithTs = label.propsToInnerValsWithTs(props, ts)
+  val op = GraphUtil.toOp(operation).getOrElse(throw new RuntimeException(s"$operation is not supported."))
+
+  def edge = Edge(srcVertex, tgtVertex, labelWithDir, op = op, version = ts, propsWithTs = propsWithTs)
+}
 case class EdgeMutate(edgesToDelete: List[IndexEdge] = List.empty[IndexEdge],
                       edgesToInsert: List[IndexEdge] = List.empty[IndexEdge],
                       newSnapshotEdge: Option[SnapshotEdge] = None) {
@@ -580,7 +607,7 @@ object Edge {
     (propsWithTs, true)
   }
 
-  def fromString(s: String): Option[Edge] = Graph.toEdge(s)
+//  def fromString(s: String): Option[Edge] = Graph.toEdge(s)
 
 
 }

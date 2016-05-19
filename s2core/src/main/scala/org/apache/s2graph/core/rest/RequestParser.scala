@@ -608,13 +608,13 @@ class RequestParser(config: Config) {
     (quads, isReverted)
   }
 
-  def toGraphElements(str: String): Seq[GraphElement] = {
+  def toGraphElements(graph: Graph, str: String): Seq[GraphElement] = {
     val edgeStrs = str.split("\\n")
 
     for {
       edgeStr <- edgeStrs
       str <- GraphUtil.parseString(edgeStr)
-      element <- Graph.toGraphElement(str)
+      element <- Graph.toGraphElement(graph, str)
     } yield element
   }
 

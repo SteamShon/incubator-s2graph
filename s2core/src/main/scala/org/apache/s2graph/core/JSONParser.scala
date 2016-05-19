@@ -19,7 +19,6 @@
 
 package org.apache.s2graph.core
 
-import org.apache.s2graph.core.mysqls.Label
 import org.apache.s2graph.core.types.{InnerVal, InnerValLike}
 import org.apache.s2graph.core.utils.logger
 import play.api.libs.json._
@@ -92,27 +91,74 @@ object JSONParser {
   //    }
   //  }
 
-  def toInnerVal(str: String, dataType: String, version: String): InnerValLike = {
-    //TODO:
-    //        logger.error(s"toInnerVal: $str, $dataType, $version")
-    val s =
-      if (str.startsWith("\"") && str.endsWith("\"")) str.substring(1, str.length - 1)
-      else str
-    val dType = InnerVal.toInnerDataType(dataType)
+//  def toInnerVal(str: String, dataType: String, version: String): InnerValLike = {
+//    //TODO:
+//    //        logger.error(s"toInnerVal: $str, $dataType, $version")
+//    val s =
+//      if (str.startsWith("\"") && str.endsWith("\"")) str.substring(1, str.length - 1)
+//      else str
+//    val dType = InnerVal.toInnerDataType(dataType)
+//
+//    dType match {
+//      case InnerVal.STRING => InnerVal.withStr(s, version)
+//      //      case t if InnerVal.NUMERICS.contains(t) => InnerVal.withNumber(BigDecimal(s), version)
+//      case InnerVal.BYTE | InnerVal.SHORT | InnerVal.INT | InnerVal.LONG | InnerVal.FLOAT | InnerVal.DOUBLE =>
+//        InnerVal.withNumber(BigDecimal(s), version)
+//      case InnerVal.BOOLEAN => InnerVal.withBoolean(s.toBoolean, version)
+//      case InnerVal.BLOB => InnerVal.withBlob(s.getBytes, version)
+//      case _ =>
+//        //        InnerVal.withStr("")
+//        throw new RuntimeException(s"illegal datatype for string: dataType is $dataType for $s")
+//    }
+//  }
+def isNumericType(dType: String): Boolean = {
+  dType == InnerVal.LONG || dType == InnerVal.INT || dType == InnerVal.SHORT || dType == InnerVal.BYTE ||
+    dType == InnerVal.FLOAT || dType == InnerVal.DOUBLE
+}
 
-    dType match {
-      case InnerVal.STRING => InnerVal.withStr(s, version)
-      //      case t if InnerVal.NUMERICS.contains(t) => InnerVal.withNumber(BigDecimal(s), version)
-      case InnerVal.BYTE | InnerVal.SHORT | InnerVal.INT | InnerVal.LONG | InnerVal.FLOAT | InnerVal.DOUBLE =>
-        InnerVal.withNumber(BigDecimal(s), version)
-      case InnerVal.BOOLEAN => InnerVal.withBoolean(s.toBoolean, version)
-      case InnerVal.BLOB => InnerVal.withBlob(s.getBytes, version)
-      case _ =>
-        //        InnerVal.withStr("")
-        throw new RuntimeException(s"illegal datatype for string: dataType is $dataType for $s")
+  def toInnerVal(any: Any, dataType: String, version: String): InnerValLike = {
+    val dType = InnerVal.toInnerDataType(dataType)
+    val isNumeric = isNumericType(dType)
+    any match {
+      case n: BigDecimal =>
+        if (isNumeric) InnerVal.withNumber(n, version)
+        else throw new RuntimeException(s"[ValueType] = BigDecimal, [DataType]: $dataType, [Input]: $any")
+      case l: Long =>
+        if (isNumeric) InnerVal.withLong(l, version)
+        else throw new RuntimeException(s"[ValueType] = Long, [DataType]: $dataType, [Input]: $any")
+      case i: Int =>
+        if (isNumeric) InnerVal.withInt(i, version)
+        else throw new RuntimeException(s"[ValueType] = Int, [DataType]: $dataType, [Input]: $any")
+      case sh: Short =>
+        if (isNumeric) InnerVal.withInt(sh.toInt, version)
+        else throw new RuntimeException(s"[ValueType] = Short, [DataType]: $dataType, [Input]: $any")
+      case b: Byte =>
+        if (isNumeric) InnerVal.withInt(b.toInt, version)
+        else throw new RuntimeException(s"[ValueType] = Byte, [DataType]: $dataType, [Input]: $any")
+      case f: Float =>
+        if (isNumeric) InnerVal.withFloat(f, version)
+        else throw new RuntimeException(s"[ValueType] = Float, [DataType]: $dataType, [Input]: $any")
+      case d: Double =>
+        if (isNumeric) InnerVal.withDouble(d, version)
+        else throw new RuntimeException(s"[ValueType] = Double, [DataType]: $dataType, [Input]: $any")
+      case bl: Boolean =>
+        if (dType == InnerVal.BOOLEAN) InnerVal.withBoolean(bl, version)
+        else throw new RuntimeException(s"[ValueType] = Boolean, [DataType]: $dataType, [Input]: $any")
+      case s: String =>
+        if (isNumeric) InnerVal.withNumber(BigDecimal(s), version)
+        else {
+          dType match {
+            case InnerVal.BOOLEAN => try {
+              InnerVal.withBoolean(s.toBoolean, version)
+            } catch {
+              case e: Exception =>
+                throw new RuntimeException(s"[ValueType] = String, [DataType]: boolean, [Input]: $any")
+            }
+            case InnerVal.STRING => InnerVal.withStr(s, version)
+          }
+        }
     }
   }
-
   def jsValueToInnerVal(jsValue: JsValue, dataType: String, version: String): Option[InnerValLike] = {
     val ret = try {
       val dType = InnerVal.toInnerDataType(dataType.toLowerCase())
