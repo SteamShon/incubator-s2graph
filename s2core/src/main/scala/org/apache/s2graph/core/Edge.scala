@@ -18,7 +18,6 @@
  */
 
 package org.apache.s2graph.core
-
 import org.apache.s2graph.core.GraphExceptions.LabelNotExistException
 import org.apache.s2graph.core.mysqls.{Label, LabelIndex, LabelMeta}
 import org.apache.s2graph.core.types._
@@ -297,7 +296,7 @@ case class S2Edge(graph: Graph,
                   direction: String,
                   props: Map[String, Any],
                   ts: Long = System.currentTimeMillis(),
-                  operation: String = "insert") extends GraphElement {
+                  operation: String = "insert") {
 
   val label = Label.findByName(labelName).getOrElse(throw new LabelNotExistException(labelName))
 
@@ -318,15 +317,6 @@ case class S2Edge(graph: Graph,
 
   val edge = Edge(srcVertex, tgtVertex, labelWithDir, op = op, version = ts, propsWithTs = propsWithTs)
 
-  override def serviceName: String = edge.serviceName
-
-  override def toLogString(): String = edge.toLogString
-
-  override def isAsync: Boolean = edge.isAsync
-
-  override def queueKey: String = edge.queueKey
-
-  override def queuePartitionKey: String = edge.queuePartitionKey
 }
 case class EdgeMutate(edgesToDelete: List[IndexEdge] = List.empty[IndexEdge],
                       edgesToInsert: List[IndexEdge] = List.empty[IndexEdge],

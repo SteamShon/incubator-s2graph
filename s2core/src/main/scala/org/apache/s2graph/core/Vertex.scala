@@ -30,7 +30,7 @@ case class S2Vertex(graph: Graph,
                     id: Any,
                     props: Map[String, Any],
                     ts: Long = System.currentTimeMillis(),
-                    operation: String = "insert") extends GraphElement {
+                    operation: String = "insert") {
   val vertex = {
     val service = Service.findByName(serviceName).getOrElse(throw new RuntimeException(s"$serviceName is not found."))
     val column = ServiceColumn.find(service.id.get, columnName).getOrElse(throw new RuntimeException(s"$columnName is not found."))
@@ -42,14 +42,6 @@ case class S2Vertex(graph: Graph,
 
     Vertex(srcVertexId, ts, propsInner, op)
   }
-
-  override def isAsync: Boolean = false
-
-  override def toLogString(): String = vertex.toLogString()
-
-  override def queueKey: String = vertex.queueKey
-
-  override def queuePartitionKey: String = vertex.queuePartitionKey
 }
 
 case class Vertex(id: VertexId,

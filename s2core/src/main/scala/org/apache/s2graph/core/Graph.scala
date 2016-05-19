@@ -19,9 +19,6 @@
 
 package org.apache.s2graph.core
 
-import java.util
-import java.util.concurrent.ConcurrentHashMap
-
 import com.typesafe.config.{Config, ConfigFactory}
 import org.apache.s2graph.core.mysqls.{Label, Model}
 import org.apache.s2graph.core.parsers.WhereParser
@@ -35,6 +32,9 @@ import scala.collection._
 import scala.collection.mutable.ListBuffer
 import scala.concurrent._
 import scala.util.Try
+import java.util
+import java.util.concurrent.ConcurrentHashMap
+
 
 object Graph {
   val DefaultScore = 1.0
@@ -388,6 +388,31 @@ class Graph(_config: Config)(implicit val ec: ExecutionContext) {
   def mutateVertices(vertices: Seq[Vertex], withWait: Boolean = false): Future[Seq[Boolean]] = storage.mutateVertices(vertices, withWait)
 
   def incrementCounts(edges: Seq[Edge], withWait: Boolean): Future[Seq[(Boolean, Long)]] = storage.incrementCounts(edges, withWait)
+
+
+  def addEdge(srcId: Any,
+              tgtId: Any,
+              labelName: String,
+              direction: String = "out",
+              props: Map[String, Any] = Map.empty,
+              ts: Long = System.currentTimeMillis(),
+              operation: String = "insert",
+              withWait: Boolean = true): Future[Boolean] = {
+
+    val innerEdges = Seq(S2Edge(this, srcId, tgtId, labelName, direction, props.toMap, ts, operation).edge)
+    storage.mutateEdges(innerEdges, withWait).map(_.headOption.getOrElse(false))
+  }
+
+  def addVertex(serviceName: String,
+                columnName: String,
+                id: Any,
+                props: Map[String, Any] = Map.empty,
+                ts: Long = System.currentTimeMillis(),
+                 operation: String = "insert",
+                 withWait: Boolean = true): Future[Boolean] = {
+    val innerVertices = Seq(S2Vertex(this, serviceName, columnName, id, props.toMap, ts, operation).vertex)
+    storage.mutateVertices(innerVertices, withWait).map(_.headOption.getOrElse(false))
+  }
 
   def shutdown(): Unit = {
     storage.flush()
