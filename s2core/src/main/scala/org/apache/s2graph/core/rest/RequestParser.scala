@@ -75,9 +75,9 @@ class RequestParser(config: Config) {
 
   import Management.JsonModel._
 
-  val hardLimit = 100000
-  val defaultLimit = 100
-  val maxLimit = Int.MaxValue - 1
+//  val HardLimit = 100000
+//  val defaultLimit = 100
+//  val maxLimit = Int.MaxValue - 1
   val DefaultRpcTimeout = config.getInt("hbase.rpc.timeout")
   val DefaultMaxAttempt = config.getInt("hbase.client.retries.number")
   val DefaultCluster = config.getString("hbase.zookeeper.quorum")
@@ -230,7 +230,7 @@ class RequestParser(config: Config) {
     val withScore = (jsValue \ "withScore").asOpt[Boolean].getOrElse(true)
     val returnTree = (jsValue \ "returnTree").asOpt[Boolean].getOrElse(false)
     //TODO: Refactor this
-    val limitOpt = (jsValue \ "limit").asOpt[Int]
+    val limit = (jsValue \ "limit").asOpt[Int].getOrElse(Graph.DefaultLimit)
     val returnAgg = (jsValue \ "returnAgg").asOpt[Boolean].getOrElse(true)
     val scoreThreshold = (jsValue \ "scoreThreshold").asOpt[Double].getOrElse(Double.MinValue)
     val returnDegree = (jsValue \ "returnDegree").asOpt[Boolean].getOrElse(true)
@@ -243,7 +243,7 @@ class RequestParser(config: Config) {
       filterOutFields = filterOutFields,
       withScore = withScore,
       returnTree = returnTree,
-      limitOpt = limitOpt,
+      limit = limit,
       returnAgg = returnAgg,
       scoreThreshold = scoreThreshold,
       returnDegree = returnDegree
@@ -352,10 +352,10 @@ class RequestParser(config: Config) {
       val direction = parse[Option[String]](labelGroup, "direction").map(GraphUtil.toDirection(_)).getOrElse(0)
       val limit = {
         parse[Option[Int]](labelGroup, "limit") match {
-          case None => defaultLimit
-          case Some(l) if l < 0 => maxLimit
+          case None => Graph.DefaultLimit
+          case Some(l) if l < 0 => Graph.MaxLimit
           case Some(l) if l >= 0 =>
-            val default = hardLimit
+            val default = Graph.HardLimit
             Math.min(l, default)
         }
       }

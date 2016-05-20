@@ -131,67 +131,25 @@ class RestHandler(graph: Graph)(implicit ec: ExecutionContext) {
     }
   }
 
-  private def eachQuery(post: StepResult => JsValue)(q: Query): Future[JsValue] = {
-    val filterOutQueryResultsLs = q.filterOutQuery match {
-      case Some(filterOutQuery) => graph.getEdges(filterOutQuery)
-      case None => Future.successful(StepResult.Empty)
-    }
-
-    for {
-      stepResult <- graph.getEdges(q)
-      filterOutStepResult <- filterOutQueryResultsLs
-    } yield {
-      val json = post(StepResult.filterOut(stepResult, filterOutStepResult))
-      json
-    }
-  }
-
   def getEdgesAsync(jsonQuery: JsValue)
-                   (post: StepResult => JsValue): Future[JsValue] = {
-
-    val fetch = eachQuery(post) _
+                   (post: (Graph, QueryOption, StepResult) => JsValue): Future[JsValue] = {
     jsonQuery match {
-      case JsArray(arr) => Future.traverse(arr.map(requestParser.toQuery(_)))(fetch).map(JsArray)
-      case obj@JsObject(_) => fetch(requestParser.toQuery(obj))
-//        (obj \ "queries").asOpt[JsValue] match {
-//          case None => fetch(requestParser.toQuery(obj))
-//          case _ =>
-//            val multiQuery = requestParser.toMultiQuery(obj)
-//            val filterOutFuture = multiQuery.queryOption.filterOutQuery match {
-//              case Some(filterOutQuery) => graph.getEdges(filterOutQuery)
-//              case None => Future.successful(Seq.empty)
-//            }
-//            val futures = multiQuery.queries.zip(multiQuery.weights).map { case (query, weight) =>
-//              val filterOutQueryResultsLs = query.queryOption.filterOutQuery match {
-//                case Some(filterOutQuery) => graph.getEdges(filterOutQuery)
-//                case None => Future.successful(Seq.empty)
-//              }
-//              for {
-//                queryRequestWithResultLs <- graph.getEdges(query)
-//                filterOutResultsLs <- filterOutQueryResultsLs
-//              } yield {
-//                val newQueryRequestWithResult = for {
-//                  queryRequestWithResult <- queryRequestWithResultLs
-//                  queryResult = queryRequestWithResult.queryResult
-//                } yield {
-//                  val newEdgesWithScores = for {
-//                    edgeWithScore <- queryRequestWithResult.queryResult.edgeWithScoreLs
-//                  } yield {
-//                    edgeWithScore.copy(score = edgeWithScore.score * weight)
-//                  }
-//                  queryRequestWithResult.copy(queryResult = queryResult.copy(edgeWithScoreLs = newEdgesWithScores))
-//                }
-//                logger.debug(s"[Size]: ${newQueryRequestWithResult.map(_.queryResult.edgeWithScoreLs.size).sum}")
-//                (newQueryRequestWithResult, filterOutResultsLs)
-//              }
-//            }
-//            for {
-//              filterOut <- filterOutFuture
-//              resultWithExcludeLs <- Future.sequence(futures)
-//            } yield {
-//              PostProcess.toSimpleVertexArrJsonMulti(multiQuery.queryOption, resultWithExcludeLs, filterOut)
-//            }
-//        }
+      case obj@JsObject(_) =>
+        (obj \ "queries").asOpt[JsValue] match {
+          case None =>
+            val query = requestParser.toQuery(obj)
+            graph.getEdges(query).map(post(graph, query.queryOption, _))
+          case _ =>
+            val multiQuery = requestParser.toMultiQuery(obj)
+            graph.getEdgesMultiQuery(multiQuery).map(post(graph, multiQuery.queryOption, _))
+        }
+
+      case JsArray(arr) =>
+        val queries = arr.map(requestParser.toQuery(_))
+        val weights = queries.map(_ => 1.0)
+        val multiQuery = MultiQuery(queries, weights, QueryOption(), jsonQuery)
+        graph.getEdgesMultiQuery(multiQuery).map(post(graph, multiQuery.queryOption, _))
+
       case _ => throw BadQueryException("Cannot support")
     }
   }

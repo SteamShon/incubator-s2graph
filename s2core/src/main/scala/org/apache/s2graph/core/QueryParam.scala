@@ -68,10 +68,14 @@ case class QueryOption(removeCycle: Boolean = false,
                        filterOutFields: Seq[String] = Seq(LabelMeta.to.name),
                        withScore: Boolean = true,
                        returnTree: Boolean = false,
-                       limitOpt: Option[Int] = None,
+                       groupedLimit: Int = Graph.DefaultLimit,
+                       limit: Int = Graph.DefaultLimit,
                        returnAgg: Boolean = true,
                        scoreThreshold: Double = Double.MinValue,
-                       returnDegree: Boolean = true)
+                       returnDegree: Boolean = true) {
+  val orderByKeys = orderByColumns.map(_._1)
+  val ascendingVals = orderByColumns.map(_._2)
+}
 
 //S2Query([("service", "column", "a"), ("service", "column", "b"), ("s", "c", "c")], Seq(
 //  Seq(S2Request("test_label"),
@@ -79,7 +83,6 @@ case class QueryOption(removeCycle: Boolean = false,
 //  Seq(S2Request("l2", "in", kvs),
 //      S2Request("l3", "out", kvs))
 //))
-
 
 case class S2Query(graph: Graph,
                    vertexIds: Seq[(String, String, Any)],
@@ -109,7 +112,7 @@ case class Query(vertices: Seq[Vertex] = Seq.empty[Vertex],
   val filterOutFields = queryOption.filterOutFields
   val withScore = queryOption.withScore
   val returnTree = queryOption.returnTree
-  val limitOpt = queryOption.limitOpt
+  val limit = queryOption.limit
   val returnAgg = queryOption.returnAgg
   val returnDegree = queryOption.returnDegree
 

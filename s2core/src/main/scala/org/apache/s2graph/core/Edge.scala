@@ -332,19 +332,22 @@ case class S2Edge(graph: Graph,
 
   val edge = Edge(srcVertex, tgtVertex, labelWithDir, op = op, version = ts, propsWithTs = propsWithTs)
 
-  def toGroupByKey(selectColumns: Seq[String]): Seq[Option[Any]] = {
+  //TODO:
+  def selectValues(selectColumns: Seq[String], useToString: Boolean = true): Seq[Option[Any]] = {
     //TODO: Option should be matched in JsonParser anyTo*
     for {
       selectColumn <- selectColumns
     } yield {
-      selectColumn match {
-        case LabelMeta.from.name => Option(srcId)
-        case LabelMeta.to.name => Option(tgtId)
+      val valueOpt = selectColumn match {
+        case LabelMeta.from.name | "from" => Option(srcId)
+        case LabelMeta.to.name | "to" => Option(tgtId)
         case "label" => Option(labelName)
         case "direction" => Option(direction)
         case _ =>
           props.get(selectColumn)
       }
+      if (useToString) valueOpt.map(_.toString)
+      else valueOpt
     }
   }
 

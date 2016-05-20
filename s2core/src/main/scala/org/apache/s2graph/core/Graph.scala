@@ -38,6 +38,9 @@ import java.util.concurrent.ConcurrentHashMap
 
 object Graph {
   val DefaultScore = 1.0
+  val HardLimit = 100000
+  val DefaultLimit = 100
+  val MaxLimit = HardLimit - 1
 
   private val DefaultConfigs: Map[String, AnyRef] = Map(
     "hbase.zookeeper.quorum" -> "localhost",
@@ -373,6 +376,8 @@ class Graph(_config: Config)(implicit val ec: ExecutionContext) {
   def checkEdges(params: Seq[(Vertex, Vertex, QueryParam)]): Future[Seq[QueryRequestWithResult]] = storage.checkEdges(params)
 
   def getEdges(q: Query): Future[StepResult] = storage.getEdges(q)
+
+  def getEdgesMultiQuery(mq: MultiQuery): Future[StepResult] = storage.getEdgesMultiQuery(mq)
 
   def getVertices(vertices: Seq[Vertex]): Future[Seq[Vertex]] = storage.getVertices(vertices)
 

@@ -20,10 +20,10 @@
 package org.apache.s2graph.core
 
 import org.apache.s2graph.core.GraphExceptions.BadQueryException
-import org.apache.s2graph.core.mysqls.{ColumnMeta, Label, LabelMeta, ServiceColumn}
-import org.apache.s2graph.core.types.{InnerVal, InnerValLike}
-import play.api.libs.json.{Json, _}
 import org.apache.s2graph.core.JSONParser._
+import org.apache.s2graph.core.mysqls.{ColumnMeta, Label, LabelMeta, ServiceColumn}
+import org.apache.s2graph.core.utils.logger
+import play.api.libs.json.{Json, _}
 
 object PostProcess {
 
@@ -31,8 +31,25 @@ object PostProcess {
   val emptyDegrees = Seq.empty[JsValue]
   val reservedColumns = Set("cacheRemain", "from", "to", "label", "direction", "_timestamp", "timestamp", "score", "props")
 
+  def s2EdgeParent(graph: Graph,
+                   parentEdges: Seq[EdgeWithScore]): JsValue = {
+    if (parentEdges.isEmpty) JsNull
+    else {
+      val ancestors = for {
+        current <- parentEdges
+        parents = s2EdgeParent(graph, current.edge.parentEdges) if parents != JsNull
+      } yield {
+          val s2Edge = S2Edge.apply(graph, current.edge.originalEdgeOpt.getOrElse(current.edge))
+          s2EdgeToJsValue(s2Edge, current.score, false, parents = parents)
+        }
+      Json.toJson(ancestors)
+    }
+  }
 
-  def s2EdgeToJsValue(s2Edge: S2Edge, score: Double, isDegree: Boolean = false): JsValue = {
+  def s2EdgeToJsValue(s2Edge: S2Edge,
+                      score: Double,
+                      isDegree: Boolean = false,
+                      parents: JsValue = JsNull): JsValue = {
     if (isDegree) {
       Json.obj(
         "from" -> anyValToJsValue(s2Edge.srcId),
@@ -46,28 +63,71 @@ object PostProcess {
         "score" -> score,
         "props" -> JSONParser.propertiesToJson(s2Edge.props),
         "direction" -> s2Edge.direction,
-        "timestamp" -> anyValToJsValue(s2Edge.ts)
+        "timestamp" -> anyValToJsValue(s2Edge.ts),
+        "parents" -> parents
       )
     }
   }
 
 
-  //TODO: Implement this.
-  def toJson(stepResult: StepResult): JsValue = {
-    if (stepResult.grouped.isEmpty) {
+  def toJson(graph: Graph,
+             queryOption: QueryOption,
+             stepResult: StepResult): JsValue = {
+
+
+    val degrees =
+      if (queryOption.returnDegree) stepResult.degreeEdges.map(t => s2EdgeToJsValue(t.s2Edge, t.score, true))
+      else emptyDegrees
+
+    if (queryOption.groupByColumns.isEmpty) {
       // no group by specified on query.
-      val degrees = stepResult.degreeEdges.map(t => s2EdgeToJsValue(t.s2Edge, t.score, true))
-      val ls = stepResult.results.map(t => s2EdgeToJsValue(t.s2Edge, t.score))
+
+      val ls = stepResult.results.map { t =>
+        val parents = if (queryOption.returnTree) s2EdgeParent(graph, t.parentEdges) else JsNull
+        s2EdgeToJsValue(t.s2Edge, t.score, false, parents)
+      }
       Json.obj(
         "size" -> ls.size,
         "degrees" -> Json.toJson(degrees),
         "results" -> Json.toJson(ls)
       )
     } else {
-      // return grouped result.
-      JsNull
+
+      val results =
+        for {
+          (groupByValues, (scoreSum, edges)) <- stepResult.grouped
+        } yield {
+          val groupByKeyValues = queryOption.groupByColumns.zip(groupByValues).map { case (k, valueOpt) =>
+            k -> valueOpt.flatMap(anyValToJsValue).getOrElse(JsNull)
+          }
+          val groupByValuesJson = Json.toJson(groupByKeyValues.toMap)
+
+          if (!queryOption.returnAgg) {
+            Json.obj(
+              "groupBy" -> groupByValuesJson,
+              "scoreSum" -> scoreSum,
+              "agg" -> Json.arr()
+            )
+          } else {
+            val agg = edges.map { t =>
+              val parents = if (queryOption.returnTree) s2EdgeParent(graph, t.parentEdges) else JsNull
+              s2EdgeToJsValue(t.s2Edge, t.score, false, parents)
+            }
+            val aggJson = Json.toJson(agg)
+            Json.obj(
+              "groupBy" -> groupByValuesJson,
+              "scoreSum" -> scoreSum,
+              "agg" -> aggJson
+            )
+          }
+        }
+
+      Json.obj("size" -> results.size,
+        "degrees" -> degrees,
+        "results" -> Json.toJson(results))
     }
   }
+
   def verticesToJson(vertices: Iterable[Vertex]) = {
     Json.toJson(vertices.flatMap { v => vertexToJson(v) })
   }

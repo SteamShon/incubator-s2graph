@@ -51,6 +51,7 @@ abstract class Storage[R](val graph: Graph,
   val maxSize = config.getInt("future.cache.max.size")
   val expireAfterWrite = config.getInt("future.cache.expire.after.write")
   val expireAfterAccess = config.getInt("future.cache.expire.after.access")
+  val fallback = Future.successful(StepResult.Empty)
 
   /**
    * Compatibility table
@@ -650,10 +651,10 @@ abstract class Storage[R](val graph: Graph,
                               queryParam: QueryParam,
                               cacheElementOpt: Option[IndexEdge],
                               parentEdges: Seq[EdgeWithScore]): Option[Edge] = {
-//        logger.debug(s"toEdge: $kv")
     try {
       val schemaVer = queryParam.label.schemaVersion
       val indexEdgeOpt = indexEdgeDeserializer(schemaVer).fromKeyValues(queryParam, Seq(kv), queryParam.label.schemaVersion, cacheElementOpt)
+      logger.debug(s"toEdge: $kv\n$indexEdgeOpt")
       indexEdgeOpt.map(indexEdge => indexEdge.toEdge.copy(parentEdges = parentEdges))
     } catch {
       case ex: Exception =>
@@ -1096,9 +1097,7 @@ abstract class Storage[R](val graph: Graph,
     } yield ret
   }
 
-  def getEdges(q: Query): Future[StepResult] = {
-    val fallback = Future.successful(StepResult.Empty)
-
+  protected def getEdgesInner(q: Query): Future[StepResult] = {
     Try {
 
       if (q.steps.isEmpty) {
@@ -1110,7 +1109,59 @@ abstract class Storage[R](val graph: Graph,
         q.steps.foldLeft(Future.successful(startQueryResultLs)) { case (acc, step) =>
             fetchStepFuture(q, acc)
         } map { queryRequestWithResultLs =>
-          StepResult(graph, q, queryRequestWithResultLs)
+          StepResult(graph, q.queryOption, queryRequestWithResultLs)
+        }
+      }
+    } recover {
+      case e: Exception =>
+        logger.error(s"getEdgesAsync: $e", e)
+        fallback
+    } get
+  }
+  def getEdges(q: Query): Future[StepResult] = {
+    Try {
+      if (q.steps.isEmpty) {
+        // TODO: this should be get vertex query.
+        fallback
+      } else {
+        val filterOutFuture = q.queryOption.filterOutQuery match {
+          case None => fallback
+          case Some(filterOutQuery) => getEdgesInner(filterOutQuery)
+        }
+        for {
+          result <- getEdgesInner(q)
+          filterOutResult <- filterOutFuture
+        } yield {
+          if (filterOutResult.results.isEmpty) result
+          else StepResult.filterOut(q.queryOption, result, filterOutResult)
+        }
+
+      }
+    } recover {
+      case e: Exception =>
+        logger.error(s"getEdgesAsync: $e", e)
+        fallback
+    } get
+  }
+
+  def getEdgesMultiQuery(mq: MultiQuery): Future[StepResult] = {
+    val fallback = Future.successful(StepResult.Empty)
+
+    Try {
+      if (mq.queries.isEmpty) fallback
+      else {
+        val filterOutFuture = mq.queryOption.filterOutQuery match {
+          case None => fallback
+          case Some(filterOutQuery) => getEdges(filterOutQuery)
+        }
+
+        val multiQueryFutures = Future.sequence(mq.queries.map { query => getEdges(query) })
+        for {
+          multiQueryResults <- multiQueryFutures
+          filterOutResult <- filterOutFuture
+        } yield {
+          val merged = StepResult.merges(mq.queryOption, multiQueryResults, mq.weights)
+          StepResult.filterOut(mq.queryOption, merged, filterOutResult)
         }
       }
     } recover {

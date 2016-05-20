@@ -129,9 +129,11 @@ trait IntegrateCommon extends FunSuite with Matchers with BeforeAndAfterAll {
     }
 
     def getEdgesSync(queryJson: JsValue): JsValue = {
-      logger.info(s"[Result]: ${Json.prettyPrint(queryJson)}")
+      logger.info(s"${Json.prettyPrint(queryJson)}")
       val restHandler = new RestHandler(graph)
-      Await.result(restHandler.getEdgesAsync(queryJson)(PostProcess.toJson), HttpRequestWaitingTime)
+      val result = Await.result(restHandler.getEdgesAsync(queryJson)(PostProcess.toJson), HttpRequestWaitingTime)
+      logger.info(s"[Result]: ${Json.prettyPrint(result)}}")
+      result
     }
 
     def insertEdgesSync(bulkEdges: String*) = {

@@ -111,10 +111,10 @@ object JSONParser {
 //        throw new RuntimeException(s"illegal datatype for string: dataType is $dataType for $s")
 //    }
 //  }
-def isNumericType(dType: String): Boolean = {
-  dType == InnerVal.LONG || dType == InnerVal.INT || dType == InnerVal.SHORT || dType == InnerVal.BYTE ||
+  def isNumericType(dType: String): Boolean = {
+    dType == InnerVal.LONG || dType == InnerVal.INT || dType == InnerVal.SHORT || dType == InnerVal.BYTE ||
     dType == InnerVal.FLOAT || dType == InnerVal.DOUBLE
-}
+  }
 
   def toInnerVal(any: Any, dataType: String, version: String): InnerValLike = {
     val dType = InnerVal.toInnerDataType(dataType)
@@ -216,7 +216,7 @@ def isNumericType(dType: String): Boolean = {
       Option(v)
     } catch {
       case e: Exception =>
-        logger.error(s"$e", e)
+        logger.error(s"anyValToJsValue: $value", e)
         None
     }
   }

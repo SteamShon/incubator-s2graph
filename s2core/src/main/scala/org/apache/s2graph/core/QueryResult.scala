@@ -21,9 +21,10 @@ package org.apache.s2graph.core
 
 import org.apache.s2graph.core.mysqls.LabelMeta
 import org.apache.s2graph.core.types.{InnerVal, InnerValLikeWithTs}
+import org.apache.s2graph.core.utils.logger
 
-import scala.collection.{mutable, Seq}
 import scala.collection.mutable.ListBuffer
+import scala.collection.{Seq, mutable}
 
 object QueryResult {
   def fromVertices(query: Query): Seq[QueryRequestWithResult] = {
@@ -75,35 +76,163 @@ object StepResult {
   type Values = Seq[S2EdgeWithScore]
   type GroupByKey = Seq[Option[Any]]
   val EmptyOrderByValues = (None, None, None, None)
-  val Empty = StepResult(Nil, Map.empty[GroupByKey, Values], Nil, Nil)
+  val Empty = StepResult(Nil, Nil, Nil, Nil)
 
-  /** TODO implement this. */
-  def filterOut(baseStepResult: StepResult, filterOutStepResult: StepResult): StepResult = {
-    val filterOutEdges = filterOutStepResult.results.map(_.s2Edge.uniqueId).toSet
-    val filteredResults = baseStepResult.results.filter(t => !filterOutEdges.contains(t.s2Edge.uniqueId))
+//  private def toHashKey(edge: Edge, queryParam: QueryParam, fields: Seq[String], delimiter: String = ","): Int = {
+//    val ls = for {
+//      field <- fields
+//    } yield {
+//        field match {
+//          case "from" | "_from" => edge.srcVertex.innerId.toIdString()
+//          case "to" | "_to" => edge.tgtVertex.innerId.toIdString()
+//          case "label" => edge.labelWithDir.labelId
+//          case "direction" => JsString(GraphUtil.fromDirection(edge.labelWithDir.dir))
+//          case "_timestamp" | "timestamp" => edge.ts
+//          case _ =>
+//            queryParam.label.metaPropsInvMap.get(field) match {
+//              case None => throw new RuntimeException(s"unknow column: $field")
+//              case Some(labelMeta) => edge.propsWithTs.get(labelMeta.seq) match {
+//                case None => labelMeta.defaultValue
+//                case Some(propVal) => propVal
+//              }
+//            }
+//        }
+//      }
+//    val ret = ls.hashCode()
+//    ret
+//  }
 
-    val grouped = for {
-      (key, values) <- baseStepResult.grouped
-    } yield key -> values.filter(v => !filterOutEdges.contains(v.s2Edge.uniqueId))
-
-    StepResult(results = filteredResults, grouped = grouped, queryRequestWithResultLs = Nil, baseStepResult.degreeEdges)
+  def mergeOrdered(left: StepResult.Values,
+                   right: StepResult.Values,
+                   queryOption: QueryOption): (Double, StepResult.Values) = {
+    val merged = (left ++ right)
+    val scoreSum = merged.foldLeft(0.0) { case (prev, current) => prev + current.score }
+    if (scoreSum < queryOption.scoreThreshold) (0.0, Nil)
+    else {
+      val ordered = orderBy(queryOption, merged)
+      val filtered = ordered.take(queryOption.groupedLimit)
+      val newScoreSum = filtered.foldLeft(0.0) { case (prev, current) => prev + current.score }
+      (newScoreSum, filtered)
+    }
+//    val leftLen = left.size
+//    val rightLen = right.size
+//    val resultLen = if (leftLen + rightLen >= stopLimit) leftLen + rightLen else stopLimit
+//    val buffer = new Array[S2EdgeWithScore](resultLen)
+//    var scoreSum = 0.0
+//    var i = 0
+//    var j = 0
+//    var k = 0
+//    var shouldStop = false
+//    while (!shouldStop && i < leftLen && j < rightLen && k < resultLen) {
+//      if (k >= stopLimit)
+//        if (left(i).score > right(j).score) {
+//          if (left(i).score < stopScore) shouldStop = true
+//          else {
+//            buffer(k) = left(i)
+//            scoreSum += buffer(k).score
+//            i += 1
+//            k += 1
+//          }
+//        } else {
+//          if (right(j).score < stopScore) shouldStop = true
+//          else {
+//            buffer(k) = right(j)
+//            scoreSum += buffer(k).score
+//            j += 1
+//            k += 1
+//          }
+//        }
+//    }
+//
+//    logger.debug(s"[MergeOrdered.Left]: $left")
+//    logger.debug(s"[MergeOrdered.Right]: $right")
+//    logger.debug(s"[MergeOrdered.StopScore]: $stopScore")
+//    logger.debug(s"[MergeOrdered.StopLimit]: $stopLimit")
+//    logger.debug(s"[MergeOrdered]: ${buffer.mkString("\n")}")
+//    (scoreSum, buffer.take(k))
   }
-  def merge(baseStepResult: StepResult, otherStepResult: StepResult): StepResult = {
-    baseStepResult
-  }
+
+//  /**
+//   *
+//   * @param queryOption
+//   * @param base
+//   * @param lookup
+//   * @param agg
+//   */
+//  def mergeIntoMutable(queryOption: QueryOption,
+//                       base: Seq[(GroupByKey, (Double, Values))],
+//                       lookup: Map[GroupByKey, (Double, Values)],
+//                       agg: mutable.HashMap[GroupByKey, (Double, Values)]): Unit = {
+//    for {
+//      (groupByKey, (scoreSum, edges)) <- base
+//    } {
+//      lookup.get(groupByKey) match {
+//        case None => // only exit on base.
+//          agg += ((groupByKey, (scoreSum -> edges)))
+//        case Some((_, otherEdges)) => // both exist.
+//          val (newScoreSum, merged) = mergeOrdered(edges, otherEdges, queryOption.scoreThreshold, queryOption.groupedLimit)
+//          agg += ((groupByKey, (newScoreSum, merged)))
+//      }
+//    }
+//  }
+
+
+//  /**
+//   * merge two result into one. this is necessary for multiquery.
+//   * note that each result(baseStepResult, otherStepResult) are ordered(flatten) or
+//   * grouped and ordered(groupBy).
+//   *
+//   * TODO: need to apply duplicate policy on step, multiquery.
+//   * @param queryOption
+//   * @param baseStepResult
+//   * @param otherStepResult
+//   * @return
+//   */
+//  def merge(queryOption: QueryOption,
+//            baseStepResult: StepResult,
+//            otherStepResult: StepResult): StepResult = {
+//    val degrees = baseStepResult.degreeEdges ++ otherStepResult.degreeEdges
+//    val (_, ordered) = mergeOrdered(baseStepResult.results,
+//      otherStepResult.results, queryOption.scoreThreshold, queryOption.limit)
+//
+//
+//    if (queryOption.groupByColumns.isEmpty) StepResult(results = ordered, grouped = Nil, Nil, degrees)
+//    else {
+//      //need to process grouped.
+//      val builder = new mutable.HashMap[GroupByKey, (Double, Values)]()
+//      val base = baseStepResult.grouped.toMap
+//      val other = otherStepResult.grouped.toMap
+//
+//      // first start with base.
+//      mergeIntoMutable(queryOption, baseStepResult.grouped, other, builder)
+//      // second go through other result.
+//      mergeIntoMutable(queryOption, otherStepResult.grouped, base, builder)
+//
+//      val grouped = builder.toSeq.sortBy(_._2._1)
+//      StepResult(results = ordered, grouped = grouped, queryRequestWithResultLs = Nil, degreeEdges = degrees)
+//    }
+//  }
 
   def filterEdgeWithScoreLs(graph: Graph,
                             result: QueryResult,
                             degreeEdges: ListBuffer[S2EdgeWithScore]): Seq[EdgeWithScore] = {
     val head = result.edgeWithScoreLs.head
     if (head.edge.isDegree) {
-      degreeEdges += S2EdgeWithScore(S2Edge(graph, head.edge), head.score)
+      degreeEdges += S2EdgeWithScore(S2Edge(graph, head.edge), head.score, parentEdges = Nil)
       result.edgeWithScoreLs.tail
     } else {
       result.edgeWithScoreLs
     }
   }
+  def orderBy(queryOption: QueryOption, notOrdered: Values): Values = {
+    import OrderingUtil._
 
+    if (queryOption.withScore && queryOption.orderByColumns.nonEmpty) {
+      notOrdered.sortBy(_.orderByValues)(TupleMultiOrdering[Any](queryOption.ascendingVals))
+    } else {
+      notOrdered
+    }
+  }
   def toOrderByValues(s2Edge: S2Edge,
                        score: Double,
                        orderByKeys: Seq[String]): (Any, Any, Any, Any) = {
@@ -128,11 +257,94 @@ object StepResult {
       }
     }
   }
+  /**
+   * merge multiple StepResult into one StepResult.
+   * @param queryOption
+   * @param multiStepResults
+   * @return
+   */
+  def merges(queryOption: QueryOption,
+             multiStepResults: Seq[StepResult],
+             weights: Seq[Double] = Nil): StepResult = {
+    val degrees = multiStepResults.flatMap(_.degreeEdges)
+    val ls = new mutable.ListBuffer[S2EdgeWithScore]()
+    val agg= new mutable.HashMap[GroupByKey, ListBuffer[S2EdgeWithScore]]()
+    val sums = new mutable.HashMap[GroupByKey, Double]()
+
+    for {
+      (weight, eachStepResult) <- weights.zip(multiStepResults)
+      (ordered, grouped) = (eachStepResult.results, eachStepResult.grouped)
+    } {
+      ordered.foreach { t =>
+        val newScore = t.score * weight
+        ls += t.copy(score = newScore)
+      }
+
+      // process each query's stepResult's grouped
+      for {
+        (groupByKey, (scoreSum, values)) <- grouped
+      } {
+        val buffer = agg.getOrElseUpdate(groupByKey, ListBuffer.empty[S2EdgeWithScore])
+        var scoreSum = 0.0
+        values.foreach { t =>
+          val newScore = t.score * weight
+          buffer += t.copy(score = newScore)
+          scoreSum += newScore
+        }
+        sums += (groupByKey -> scoreSum)
+      }
+    }
+
+    // process global groupBy
+    if (queryOption.groupByColumns.nonEmpty) {
+      for {
+        s2EdgeWithScore <- ls
+        groupByKey = s2EdgeWithScore.s2Edge.selectValues(queryOption.groupByColumns)
+      } {
+        val buffer = agg.getOrElseUpdate(groupByKey, ListBuffer.empty[S2EdgeWithScore])
+        buffer += s2EdgeWithScore
+        val newScore = sums.getOrElse(groupByKey, 0.0) + s2EdgeWithScore.score
+        sums += (groupByKey -> newScore)
+      }
+    }
 
 
+    val ordered = orderBy(queryOption, ls)
+    val grouped = for {
+      (groupByKey, scoreSum) <- sums.toSeq.sortBy(_._2 * -1)
+      aggregated = agg(groupByKey) if aggregated.nonEmpty
+    } yield groupByKey -> (scoreSum, aggregated)
+
+    StepResult(results = ordered, grouped = grouped, Nil, degrees)
+  }
+  def filterOut(queryOption: QueryOption,
+                baseStepResult: StepResult,
+                filterOutStepResult: StepResult): StepResult = {
+    //TODO: Optimize this.
+    val fields = if (queryOption.filterOutFields.isEmpty) Seq("to") else Seq("to")
+    //    else queryOption.filterOutFields
+    val filterOutSet = filterOutStepResult.results.map { t =>
+      t.s2Edge.selectValues(fields)
+    }.toSet
+
+    val filteredResults = baseStepResult.results.filter { t =>
+      val filterOutKey = t.s2Edge.selectValues(fields)
+      !filterOutSet.contains(filterOutKey)
+    }
+
+    val grouped = for {
+      (key, (scoreSum, values)) <- baseStepResult.grouped
+      (out, in) = values.partition(v => filterOutSet.contains(v.s2Edge.selectValues(fields)))
+      newScoreSum = scoreSum - out.foldLeft(0.0) { case (prev, current) => prev + current.score } if in.nonEmpty
+    } yield key -> (newScoreSum, in)
+
+
+    StepResult(results = filteredResults, grouped = grouped,
+      queryRequestWithResultLs = Nil, baseStepResult.degreeEdges)
+  }
   //TODO: OrderBy, Select is not implemented.
   def apply(graph: Graph,
-            query: Query,
+            queryOption: QueryOption,
             queryRequestWithResultLs: Seq[QueryRequestWithResult]): StepResult = {
 
     val degreeEdges = new ListBuffer[S2EdgeWithScore]()
@@ -143,22 +355,33 @@ object StepResult {
     } yield {
         val s2Edge = S2Edge.apply(graph, edgeWithScore.edge)
         val orderByValues =
-          if (query.orderByColumns.isEmpty) (edgeWithScore.score, None, None, None)
-          else toOrderByValues(s2Edge, edgeWithScore.score, query.orderByKeys)
-        S2EdgeWithScore(s2Edge, edgeWithScore.score, orderByValues)
-      }
-    val ordered = results.sortBy(_.orderByValues)(TupleMultiOrdering(query.ascendingVals))
+          if (queryOption.orderByColumns.isEmpty) (edgeWithScore.score, None, None, None)
+          else toOrderByValues(s2Edge, edgeWithScore.score, queryOption.orderByKeys)
 
+        S2EdgeWithScore(s2Edge, edgeWithScore.score, orderByValues, edgeWithScore.edge.parentEdges)
+      }
+    /** ordered flatten result */
+    val ordered = orderBy(queryOption, results)
+
+    /** ordered grouped result */
     val grouped =
-      if (query.groupByColumns.isEmpty) Map.empty[StepResult.GroupByKey, StepResult.Values]
+      if (queryOption.groupByColumns.isEmpty) Nil
       else {
-        val groupedBy = results.groupBy { s2EdgeWithScore =>
-          s2EdgeWithScore.s2Edge.toGroupByKey(query.groupByColumns)
+        val agg = new mutable.HashMap[GroupByKey, (Double, Values)]()
+        results.groupBy { s2EdgeWithScore =>
+          s2EdgeWithScore.s2Edge.selectValues(queryOption.groupByColumns, useToString = true)
+        }.map { case (k, ls) =>
+          val (scoreSum, merged) = mergeOrdered(ls, Nil, queryOption)
+          /**
+           * watch out here. by calling toString on Any, we lose type information which will be used
+           * later for toJson.
+           */
+          if (merged.nonEmpty) {
+            val newKey = merged.head.s2Edge.selectValues(queryOption.groupByColumns, useToString = false)
+            agg += (newKey -> (scoreSum, merged))
+          }
         }
-        groupedBy.map { case (k, ls) =>
-//          val scoreSum = ls.foldLeft(0.0) { case (prev, current) => current.score }
-          k -> ls.sortBy(_.orderByValues)(TupleMultiOrdering(query.ascendingVals))
-        }
+        agg.toSeq.sortBy(_._2._1 * -1)
       }
 
     StepResult(results = ordered, grouped = grouped,
@@ -168,9 +391,10 @@ object StepResult {
 
 case class S2EdgeWithScore(s2Edge: S2Edge,
                            score: Double,
-                           orderByValues: (Any, Any, Any, Any) = StepResult.EmptyOrderByValues)
+                           orderByValues: (Any, Any, Any, Any) = StepResult.EmptyOrderByValues,
+                           parentEdges: Seq[EdgeWithScore] = Nil)
 
 case class StepResult(results: StepResult.Values,
-                      grouped: Map[StepResult.GroupByKey, StepResult.Values],
+                      grouped: Seq[(StepResult.GroupByKey, (Double, StepResult.Values))],
                       queryRequestWithResultLs: Seq[QueryRequestWithResult],
                       degreeEdges: StepResult.Values)
