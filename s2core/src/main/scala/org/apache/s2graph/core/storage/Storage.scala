@@ -1084,7 +1084,7 @@ abstract class Storage[R](val graph: Graph,
       } yield (QueryRequest(q, stepIdx, vertex, queryParam), prevStepScore)
 
       val fetchedLs = fetches(queryRequests, prevStepTgtVertexIdEdges)
-      Graph.filterEdges(orgQuery, stepIdx, fetchedLs, orgQuery.steps(stepIdx).queryParams, alreadyVisited)(ec)
+      Graph.filterEdges(orgQuery, stepIdx, queryRequests.map(_._1), fetchedLs, orgQuery.steps(stepIdx).queryParams, alreadyVisited)(ec)
     }
   }
 

@@ -195,6 +195,7 @@ object Graph {
 
   def filterEdges(q: Query,
                   stepIdx: Int,
+                  queryRequests: Seq[QueryRequest],
                   queryResultLsFuture: Future[Seq[StepInnerResult]],
                   queryParams: Seq[QueryParam],
                   alreadyVisited: Map[(LabelWithDirection, Vertex), Boolean] = Map.empty[(LabelWithDirection, Vertex), Boolean])
@@ -219,13 +220,10 @@ object Graph {
         val agg = new mutable.HashMap[HashKey, ListBuffer[(FilterHashKey, EdgeWithScore)]]()
         val params = new mutable.HashMap[HashKey, QueryParam]()
         var numOfDuplicates = 0
-        queryParams.zip(queryRequestWithResultLs).foreach { case (queryParam, stepInnerResult) =>
-          //          val duplicateEdges = new util.concurrent.ConcurrentHashMap[HashKey, ListBuffer[(Edge, Double)]]()
-          //          val resultEdges = new util.concurrent.ConcurrentHashMap[HashKey, (FilterHashKey, Edge, Double)]()
-          //          val edgeWithScoreSorted = new ListBuffer[(HashKey, FilterHashKey, Edge, Double)]
+        var numOfTotal = 0
+        queryRequests.zip(queryRequestWithResultLs).foreach { case (queryRequest, stepInnerResult) =>
+          val queryParam = queryRequest.queryParam
           val labelWeight = step.labelWeights.getOrElse(queryParam.labelWithDir.labelId, 1.0)
-
-
           val includeExcludeKey = queryParam.labelWithDir.labelId -> queryParam.labelWithDir.dir
           val shouldBeExcluded = excludeLabelWithDirSet.contains(includeExcludeKey)
           val shouldBeIncluded = includeLabelWithDirSet.contains(includeExcludeKey)
@@ -237,7 +235,7 @@ object Graph {
             if where == WhereParser.success || where.filter(edgeWithScore.edge)
             (edge, score) = EdgeWithScore.unapply(edgeWithScore).get
           } {
-
+            numOfTotal += 1
             if (queryParam.transformer.isDefault) {
               val convertedEdge = edge
 
@@ -263,9 +261,10 @@ object Graph {
                     numOfDuplicates += 1
                     old += (filterHashKey -> newEdgeWithScore)
                 }
+                params += (hashKey -> queryParam)
 //                val buffer = agg.getOrElseUpdate(hashKey, new ListBuffer[(FilterHashKey, EdgeWithScore)]())
 //                buffer += (filterHashKey -> newEdgeWithScore)
-                params += (hashKey -> queryParam)
+
                 //                aggregateScore(newScore, resultEdges, duplicateEdges, edgeWithScoreSorted, hashKey, filterHashKey, queryParam, convertedEdge)
               }
             } else {
@@ -292,9 +291,10 @@ object Graph {
                       numOfDuplicates += 1
                       old += (filterHashKey -> newEdgeWithScore)
                   }
+                  params += (hashKey -> queryParam)
 //                  val buffer = agg.getOrElseUpdate(hashKey, new ListBuffer[(FilterHashKey, EdgeWithScore)]())
 //                  buffer += (filterHashKey -> newEdgeWithScore)
-                  params += (hashKey -> queryParam)
+
                   //                  aggregateScore(newScore, resultEdges, duplicateEdges, edgeWithScoreSorted, hashKey, filterHashKey, queryParam, convertedEdge)
                 }
               }
@@ -326,6 +326,7 @@ object Graph {
         }
 
         val degrees = queryRequestWithResultLs.flatMap(_.degreeEdges)
+        logger.debug(s"[FilterEdgesSize]: ${edgeWithScoreLs.size}")
         StepInnerResult(edgesWithScoreLs = edgeWithScoreLs, degreeEdges = degrees)
       }
     }
