@@ -52,6 +52,7 @@ abstract class Storage[R](val graph: Graph,
   val expireAfterWrite = config.getInt("future.cache.expire.after.write")
   val expireAfterAccess = config.getInt("future.cache.expire.after.access")
   val fallback = Future.successful(StepResult.Empty)
+  val innerFallback = Future.successful(StepInnerResult.Empty)
 
   /**
    * Compatibility table
@@ -220,7 +221,7 @@ abstract class Storage[R](val graph: Graph,
    * @return
    */
   def fetches(queryRequestWithScoreLs: Seq[(QueryRequest, Double)],
-              prevStepEdges: Map[VertexId, Seq[EdgeWithScore]]): Future[Seq[QueryRequestWithResult]]
+              prevStepEdges: Map[VertexId, Seq[EdgeWithScore]]): Future[Seq[StepInnerResult]]
 
   /**
    * fetch Vertex for given request from storage.
@@ -480,39 +481,42 @@ abstract class Storage[R](val graph: Graph,
 
 
   /** Delete All */
-  protected def deleteAllFetchedEdgesAsyncOld(queryRequest: QueryRequest,
-                                              queryResult: QueryResult,
+  protected def deleteAllFetchedEdgesAsyncOld(queryResult: StepInnerResult,
                                               requestTs: Long,
                                               retryNum: Int): Future[Boolean] = {
-    val queryParam = queryRequest.queryParam
-    val zkQuorum = queryParam.label.hbaseZkAddr
-    val futures = for {
-      edgeWithScore <- queryResult.edgeWithScoreLs
-      (edge, score) = EdgeWithScore.unapply(edgeWithScore).get
-    } yield {
-        /** reverted direction */
-        val reversedIndexedEdgesMutations = edge.duplicateEdge.edgesWithIndex.flatMap { indexEdge =>
-          indexEdgeSerializer(indexEdge).toKeyValues.map(_.copy(operation = SKeyValue.Delete)) ++
-            buildIncrementsAsync(indexEdge, -1L)
+    if (queryResult.edgesWithScoreLs.isEmpty) Future.successful(true)
+    else {
+      val head = queryResult.edgesWithScoreLs.head
+      val zkQuorum = head.edge.label.hbaseZkAddr
+      val futures = for {
+        edgeWithScore <- queryResult.edgesWithScoreLs
+        (edge, score) = EdgeWithScore.unapply(edgeWithScore).get
+      } yield {
+          /** reverted direction */
+          val reversedIndexedEdgesMutations = edge.duplicateEdge.edgesWithIndex.flatMap { indexEdge =>
+            indexEdgeSerializer(indexEdge).toKeyValues.map(_.copy(operation = SKeyValue.Delete)) ++
+              buildIncrementsAsync(indexEdge, -1L)
+          }
+          val reversedSnapshotEdgeMutations = snapshotEdgeSerializer(edge.toSnapshotEdge).toKeyValues.map(_.copy(operation = SKeyValue.Put))
+          val forwardIndexedEdgeMutations = edge.edgesWithIndex.flatMap { indexEdge =>
+            indexEdgeSerializer(indexEdge).toKeyValues.map(_.copy(operation = SKeyValue.Delete)) ++
+              buildIncrementsAsync(indexEdge, -1L)
+          }
+          val mutations = reversedIndexedEdgesMutations ++ reversedSnapshotEdgeMutations ++ forwardIndexedEdgeMutations
+          writeToStorage(zkQuorum, mutations, withWait = true)
         }
-        val reversedSnapshotEdgeMutations = snapshotEdgeSerializer(edge.toSnapshotEdge).toKeyValues.map(_.copy(operation = SKeyValue.Put))
-        val forwardIndexedEdgeMutations = edge.edgesWithIndex.flatMap { indexEdge =>
-          indexEdgeSerializer(indexEdge).toKeyValues.map(_.copy(operation = SKeyValue.Delete)) ++
-            buildIncrementsAsync(indexEdge, -1L)
-        }
-        val mutations = reversedIndexedEdgesMutations ++ reversedSnapshotEdgeMutations ++ forwardIndexedEdgeMutations
-        writeToStorage(zkQuorum, mutations, withWait = true)
-      }
 
-    Future.sequence(futures).map { rets => rets.forall(identity) }
+      Future.sequence(futures).map { rets => rets.forall(identity) }
+    }
   }
 
-  protected def buildEdgesToDelete(queryRequestWithResultLs: QueryRequestWithResult, requestTs: Long): QueryResult = {
-    val (queryRequest, queryResult) = QueryRequestWithResult.unapply(queryRequestWithResultLs).get
-    val edgeWithScoreLs = queryResult.edgeWithScoreLs.filter { edgeWithScore =>
+  protected def buildEdgesToDelete(stepInnerResult: StepInnerResult,
+                                   requestTs: Long): StepInnerResult = {
+
+    val edgeWithScoreLs = stepInnerResult.edgesWithScoreLs.filter { edgeWithScore =>
       (edgeWithScore.edge.ts < requestTs) && !edgeWithScore.edge.isDegree
     }.map { edgeWithScore =>
-      val label = queryRequest.queryParam.label
+      val label = edgeWithScore.edge.label
       val (newOp, newVersion, newPropsWithTs) = label.consistencyLevel match {
         case "strong" =>
           val _newPropsWithTs = edgeWithScore.edge.propsWithTs ++
@@ -530,56 +534,50 @@ abstract class Storage[R](val graph: Graph,
 //      logger.debug(s"delete edge from deleteAll: ${edgeToDelete.edge.toLogString}")
       edgeToDelete
     }
-
-    queryResult.copy(edgeWithScoreLs = edgeWithScoreLs)
+    StepInnerResult(edgesWithScoreLs = edgeWithScoreLs)
   }
 
-  protected def deleteAllFetchedEdgesLs(queryRequestWithResultLs: Seq[QueryRequestWithResult],
+  protected def deleteAllFetchedEdgesLs(stepInnerResult: StepInnerResult,
                                         requestTs: Long): Future[(Boolean, Boolean)] = {
-    val queryResultLs = queryRequestWithResultLs.map(_.queryResult)
-    queryResultLs.foreach { queryResult =>
-      if (queryResult.isFailure) throw new RuntimeException("fetched result is fallback.")
-    }
-    val futures = for {
-      queryRequestWithResult <- queryRequestWithResultLs
-      (queryRequest, _) = QueryRequestWithResult.unapply(queryRequestWithResult).get
-      deleteQueryResult = buildEdgesToDelete(queryRequestWithResult, requestTs)
-      if deleteQueryResult.edgeWithScoreLs.nonEmpty
-    } yield {
-        val label = queryRequest.queryParam.label
-        label.schemaVersion match {
-          case HBaseType.VERSION3 | HBaseType.VERSION4 =>
-            if (label.consistencyLevel == "strong") {
+
+    if (stepInnerResult.isFailure) throw new RuntimeException("fetched result is fallback.")
+    val deleteQueryResult = buildEdgesToDelete(stepInnerResult, requestTs)
+    if (deleteQueryResult.edgesWithScoreLs.isEmpty) Future.successful(true -> true)
+    else {
+      val head = deleteQueryResult.edgesWithScoreLs.head
+      val label = head.edge.label
+      val futures = for {
+        edgeWithScore <- deleteQueryResult.edgesWithScoreLs
+      } yield {
+          label.schemaVersion match {
+            case HBaseType.VERSION3 | HBaseType.VERSION4 =>
+              if (label.consistencyLevel == "strong") {
+                /**
+                 * read: snapshotEdge on queryResult = O(N)
+                 * write: N x (relatedEdges x indices(indexedEdge) + 1(snapshotEdge))
+                 */
+                mutateEdges(deleteQueryResult.edgesWithScoreLs.map(_.edge), withWait = true).map(_.forall(identity))
+              } else {
+                deleteAllFetchedEdgesAsyncOld(deleteQueryResult, requestTs, MaxRetryNum)
+              }
+            case _ =>
+
               /**
-               * read: snapshotEdge on queryResult = O(N)
-               * write: N x (relatedEdges x indices(indexedEdge) + 1(snapshotEdge))
+               * read: x
+               * write: N x ((1(snapshotEdge) + 2(1 for incr, 1 for delete) x indices)
                */
-              mutateEdges(deleteQueryResult.edgeWithScoreLs.map(_.edge), withWait = true).map(_.forall(identity))
-            } else {
-              deleteAllFetchedEdgesAsyncOld(queryRequest, deleteQueryResult, requestTs, MaxRetryNum)
-            }
-          case _ =>
-
-            /**
-             * read: x
-             * write: N x ((1(snapshotEdge) + 2(1 for incr, 1 for delete) x indices)
-             */
-            deleteAllFetchedEdgesAsyncOld(queryRequest, deleteQueryResult, requestTs, MaxRetryNum)
+              deleteAllFetchedEdgesAsyncOld(deleteQueryResult, requestTs, MaxRetryNum)
+          }
         }
-      }
 
-    if (futures.isEmpty) {
-      // all deleted.
-      Future.successful(true -> true)
-    } else {
       Future.sequence(futures).map { rets => false -> rets.forall(identity) }
     }
   }
 
   protected def fetchAndDeleteAll(query: Query, requestTs: Long): Future[(Boolean, Boolean)] = {
     val future = for {
-      stepResult <- getEdges(query)
-      (allDeleted, ret) <- deleteAllFetchedEdgesLs(stepResult.queryRequestWithResultLs, requestTs)
+      stepInnerResult <- getEdgesStepInner(query)
+      (allDeleted, ret) <- deleteAllFetchedEdgesLs(stepInnerResult, requestTs)
     } yield {
 //        logger.debug(s"fetchAndDeleteAll: ${allDeleted}, ${ret}")
         (allDeleted, ret)
@@ -654,7 +652,7 @@ abstract class Storage[R](val graph: Graph,
     try {
       val schemaVer = queryParam.label.schemaVersion
       val indexEdgeOpt = indexEdgeDeserializer(schemaVer).fromKeyValues(queryParam, Seq(kv), queryParam.label.schemaVersion, cacheElementOpt)
-      logger.debug(s"toEdge: $kv\n$indexEdgeOpt")
+//      logger.debug(s"toEdge: $kv\n$indexEdgeOpt")
       indexEdgeOpt.map(indexEdge => indexEdge.toEdge.copy(parentEdges = parentEdges))
     } catch {
       case ex: Exception =>
@@ -1043,27 +1041,26 @@ abstract class Storage[R](val graph: Graph,
     }
   }
 
-  protected def fetchStep(orgQuery: Query, queryRequestWithResultsLs: Seq[QueryRequestWithResult]): Future[Seq[QueryRequestWithResult]] = {
-    if (queryRequestWithResultsLs.isEmpty) Future.successful(Nil)
+  protected def fetchStep(orgQuery: Query,
+                          stepIdx: Int,
+                          stepInnerResult: StepInnerResult): Future[StepInnerResult] = {
+    if (stepInnerResult.isEmpty) Future.successful(StepInnerResult.Empty)
     else {
-      val queryRequest = queryRequestWithResultsLs.head.queryRequest
-      val q = orgQuery
-      val queryResultsLs = queryRequestWithResultsLs.map(_.queryResult)
+      val edgeWithScoreLs = stepInnerResult.edgesWithScoreLs
 
-      val stepIdx = queryRequest.stepIdx + 1
+      val q = orgQuery
 
       val prevStepOpt = if (stepIdx > 0) Option(q.steps(stepIdx - 1)) else None
       val prevStepThreshold = prevStepOpt.map(_.nextStepScoreThreshold).getOrElse(QueryParam.DefaultThreshold)
       val prevStepLimit = prevStepOpt.map(_.nextStepLimit).getOrElse(-1)
       val step = q.steps(stepIdx)
+
       val alreadyVisited =
         if (stepIdx == 0) Map.empty[(LabelWithDirection, Vertex), Boolean]
-        else Graph.alreadyVisitedVertices(queryResultsLs)
+        else Graph.alreadyVisitedVertices(stepInnerResult)
 
-      val groupedBy = queryResultsLs.flatMap { queryResult =>
-        queryResult.edgeWithScoreLs.map { case edgeWithScore =>
-          edgeWithScore.edge.tgtVertex -> edgeWithScore
-        }
+      val groupedBy = edgeWithScoreLs.map { case edgeWithScore =>
+        edgeWithScore.edge.tgtVertex -> edgeWithScore
       }.groupBy { case (vertex, edgeWithScore) => vertex }
 
       val groupedByFiltered = for {
@@ -1086,38 +1083,44 @@ abstract class Storage[R](val graph: Graph,
         queryParam <- step.queryParams
       } yield (QueryRequest(q, stepIdx, vertex, queryParam), prevStepScore)
 
-      Graph.filterEdges(fetches(queryRequests, prevStepTgtVertexIdEdges), alreadyVisited)(ec)
+      val fetchedLs = fetches(queryRequests, prevStepTgtVertexIdEdges)
+      Graph.filterEdges(orgQuery, stepIdx, fetchedLs, orgQuery.steps(stepIdx).queryParams, alreadyVisited)(ec)
     }
   }
 
-  protected def fetchStepFuture(orgQuery: Query, queryRequestWithResultLsFuture: Future[Seq[QueryRequestWithResult]]): Future[Seq[QueryRequestWithResult]] = {
+  protected def fetchStepFuture(orgQuery: Query,
+                                stepIdx: Int,
+                                stepInnerResultFuture: Future[StepInnerResult]): Future[StepInnerResult] = {
     for {
-      queryRequestWithResultLs <- queryRequestWithResultLsFuture
-      ret <- fetchStep(orgQuery, queryRequestWithResultLs)
+      stepInnerResult <- stepInnerResultFuture
+      ret <- fetchStep(orgQuery, stepIdx, stepInnerResult)
     } yield ret
   }
-
-  protected def getEdgesInner(q: Query): Future[StepResult] = {
+  protected def getEdgesStepInner(q: Query): Future[StepInnerResult] = {
     Try {
 
       if (q.steps.isEmpty) {
         // TODO: this should be get vertex query.
-        fallback
+        innerFallback
       } else {
         // current stepIdx = -1
-        val startQueryResultLs = QueryResult.fromVertices(q)
-        q.steps.foldLeft(Future.successful(startQueryResultLs)) { case (acc, step) =>
-            fetchStepFuture(q, acc)
-        } map { queryRequestWithResultLs =>
-          StepResult(graph, q.queryOption, queryRequestWithResultLs)
+        val startStepInnerResult = QueryResult.fromVertices(q)
+        q.steps.zipWithIndex.foldLeft(Future.successful(startStepInnerResult)) { case (acc, (step, stepIdx)) =>
+          fetchStepFuture(q, stepIdx, acc)
         }
       }
     } recover {
       case e: Exception =>
         logger.error(s"getEdgesAsync: $e", e)
-        fallback
+        innerFallback
     } get
   }
+
+
+  protected def getEdgesInner(q: Query): Future[StepResult] = {
+    getEdgesStepInner(q).map { stepInnerResult => StepResult(graph, q.queryOption, stepInnerResult) }
+  }
+
   def getEdges(q: Query): Future[StepResult] = {
     Try {
       if (q.steps.isEmpty) {
@@ -1171,23 +1174,27 @@ abstract class Storage[R](val graph: Graph,
     } get
   }
 
-  def checkEdges(params: Seq[(Vertex, Vertex, QueryParam)]): Future[Seq[QueryRequestWithResult]] = {
+  def checkEdges(params: Seq[(Vertex, Vertex, QueryParam)]): Future[StepResult] = {
     val ts = System.currentTimeMillis()
+
     val futures = for {
       (srcVertex, tgtVertex, queryParam) <- params
       propsWithTs = Map(LabelMeta.timeStampSeq -> InnerValLikeWithTs.withLong(ts, ts, queryParam.label.schemaVersion))
       edge = Edge(srcVertex, tgtVertex, queryParam.labelWithDir, propsWithTs = propsWithTs)
     } yield {
         fetchSnapshotEdge(edge).map { case (queryParam, edgeOpt, kvOpt) =>
-          val _queryParam = queryParam.tgtVertexInnerIdOpt(Option(edge.tgtVertex.innerId))
-          val q = Query.toQuery(Seq(edge.srcVertex), _queryParam)
-          val queryRequest = QueryRequest(q, 0, edge.srcVertex, _queryParam)
-          val queryResult = QueryResult(edgeOpt.toSeq.map(e => EdgeWithScore(e, 1.0)))
-          QueryRequestWithResult(queryRequest, queryResult)
+          edgeOpt.toSeq.map(e => EdgeWithScore(e, 1.0))
         }
       }
 
-    Future.sequence(futures)
+    Future.sequence(futures).map { edgeWithScoreLs =>
+      val s2EdgeWithScoreLs = edgeWithScoreLs.flatMap { ls =>
+        ls.map { edgeWithScore =>
+          S2EdgeWithScore(S2Edge.apply(graph, edgeWithScore.edge), edgeWithScore.score)
+        }
+      }
+      StepResult(results = s2EdgeWithScoreLs, grouped = Nil, degreeEdges = Nil)
+    }
   }
 
 

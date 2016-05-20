@@ -79,10 +79,9 @@ object AsynchbaseStorage {
   }
 }
 
-
 class AsynchbaseStorage(override val graph: Graph,
                         override val config: Config)(implicit ec: ExecutionContext)
-  extends Storage[Deferred[QueryRequestWithResult]](graph, config) {
+  extends Storage[Deferred[StepInnerResult]](graph, config) {
 
   import Extensions.DeferOps
 
@@ -100,7 +99,7 @@ class AsynchbaseStorage(override val graph: Graph,
   private def client(withWait: Boolean): HBaseClient = if (withWait) clientWithFlush else client
 
   /** Future Cache to squash request */
-  private val futureCache = new DeferCache[QueryResult](config)(ec)
+  private val futureCache = new DeferCache[StepInnerResult](config)(ec)
 
   /** Simple Vertex Cache */
   private val vertexCache = new FutureCache[Seq[SKeyValue]](config)(ec)
@@ -230,8 +229,8 @@ class AsynchbaseStorage(override val graph: Graph,
             }
             (_startKey, Bytes.add(baseKey, Array.fill(1)(-1)))
           }
-//                logger.debug(s"[StartKey]: ${startKey.toList}")
-//                logger.debug(s"[StopKey]: ${stopKey.toList}")
+        //                logger.debug(s"[StartKey]: ${startKey.toList}")
+        //                logger.debug(s"[StopKey]: ${stopKey.toList}")
 
         scanner.setStartKey(startKey)
         scanner.setStopKey(stopKey)
@@ -277,21 +276,23 @@ class AsynchbaseStorage(override val graph: Graph,
   override def fetch(queryRequest: QueryRequest,
                      prevStepScore: Double,
                      isInnerCall: Boolean,
-                     parentEdges: Seq[EdgeWithScore]): Deferred[QueryRequestWithResult] = {
+                     parentEdges: Seq[EdgeWithScore]): Deferred[StepInnerResult] = {
 
-    def fetchInner(hbaseRpc: AnyRef): Deferred[QueryResult] = {
+    def fetchInner(hbaseRpc: AnyRef): Deferred[StepInnerResult] = {
       fetchKeyValuesInner(hbaseRpc).withCallback { kvs =>
         val edgeWithScores = toEdges(kvs, queryRequest.queryParam, prevStepScore, isInnerCall, parentEdges)
         val resultEdgesWithScores = if (queryRequest.queryParam.sample >= 0) {
           sample(queryRequest, edgeWithScores, queryRequest.queryParam.sample)
         } else edgeWithScores
-        QueryResult(resultEdgesWithScores, tailCursor = kvs.lastOption.map(_.key).getOrElse(Array.empty[Byte]))
-//        QueryRequestWithResult(queryRequest, QueryResult(resultEdgesWithScores, tailCursor = kvs.lastOption.map(_.key).getOrElse(Array.empty)))
+        StepInnerResult(edgesWithScoreLs = resultEdgesWithScores)
+//        QueryResult(resultEdgesWithScores, tailCursor = kvs.lastOption.map(_.key).getOrElse(Array.empty[Byte]))
+        //        QueryRequestWithResult(queryRequest, QueryResult(resultEdgesWithScores, tailCursor = kvs.lastOption.map(_.key).getOrElse(Array.empty)))
 
       } recoverWith { ex =>
         logger.error(s"fetchInner failed. fallback return. $hbaseRpc}", ex)
-        QueryResult(isFailure = true)
-//        QueryRequestWithResult(queryRequest, QueryResult(isFailure = true))
+        StepInnerResult.Failure
+//        QueryResult(isFailure = true)
+        //        QueryRequestWithResult(queryRequest, QueryResult(isFailure = true))
       }
     }
 
@@ -299,27 +300,26 @@ class AsynchbaseStorage(override val graph: Graph,
     val cacheTTL = queryParam.cacheTTLInMillis
     val request = buildRequest(queryRequest)
 
-    val defer =
-      if (cacheTTL <= 0) fetchInner(request)
-      else {
-        val cacheKeyBytes = Bytes.add(queryRequest.query.cacheKeyBytes, toCacheKeyBytes(request))
-        val cacheKey = queryParam.toCacheKey(cacheKeyBytes)
-        futureCache.getOrElseUpdate(cacheKey, cacheTTL)(fetchInner(request))
+
+    if (cacheTTL <= 0) fetchInner(request)
+    else {
+      val cacheKeyBytes = Bytes.add(queryRequest.query.cacheKeyBytes, toCacheKeyBytes(request))
+      val cacheKey = queryParam.toCacheKey(cacheKeyBytes)
+      futureCache.getOrElseUpdate(cacheKey, cacheTTL)(fetchInner(request))
     }
-    defer withCallback { queryResult => QueryRequestWithResult(queryRequest, queryResult)}
   }
 
 
   override def fetches(queryRequestWithScoreLs: scala.Seq[(QueryRequest, Double)],
-                       prevStepEdges: Predef.Map[VertexId, scala.Seq[EdgeWithScore]]): Future[scala.Seq[QueryRequestWithResult]] = {
-    val defers: Seq[Deferred[QueryRequestWithResult]] = for {
+                       prevStepEdges: Predef.Map[VertexId, scala.Seq[EdgeWithScore]]): Future[scala.Seq[StepInnerResult]] = {
+    val defers: Seq[Deferred[StepInnerResult]] = for {
       (queryRequest, prevStepScore) <- queryRequestWithScoreLs
       parentEdges <- prevStepEdges.get(queryRequest.vertex.id)
     } yield fetch(queryRequest, prevStepScore, isInnerCall = false, parentEdges)
 
-    val grouped: Deferred[util.ArrayList[QueryRequestWithResult]] = Deferred.group(defers)
+    val grouped: Deferred[util.ArrayList[StepInnerResult]] = Deferred.group(defers)
     grouped withCallback {
-      queryResults: util.ArrayList[QueryRequestWithResult] =>
+      queryResults: util.ArrayList[StepInnerResult] =>
         queryResults.toIndexedSeq
     } toFuture
   }

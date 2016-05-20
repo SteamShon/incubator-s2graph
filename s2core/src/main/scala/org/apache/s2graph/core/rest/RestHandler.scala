@@ -75,17 +75,8 @@ class RestHandler(graph: Graph)(implicit ec: ExecutionContext) {
     try {
       val (quads, isReverted) = requestParser.toCheckEdgeParam(jsValue)
 
-      HandlerResult(graph.checkEdges(quads).map { case queryRequestWithResultLs =>
-        val edgeJsons = for {
-          queryRequestWithResult <- queryRequestWithResultLs
-          (queryRequest, queryResult) = QueryRequestWithResult.unapply(queryRequestWithResult).get
-          edgeWithScore <- queryResult.edgeWithScoreLs
-          (edge, score) = EdgeWithScore.unapply(edgeWithScore).get
-          convertedEdge = if (isReverted) edge.duplicateEdge else edge
-          edgeJson = PostProcess.edgeToJson(convertedEdge, score, queryRequest.query, queryRequest.queryParam)
-        } yield Json.toJson(edgeJson)
-
-        Json.toJson(edgeJsons)
+      HandlerResult(graph.checkEdges(quads).map { case stepResult =>
+        PostProcess.toJson(graph, QueryOption(), stepResult)
       })
     } catch {
       case e: Exception => HandlerResult(Future.failed(e))

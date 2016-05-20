@@ -27,40 +27,50 @@ import scala.collection.mutable.ListBuffer
 import scala.collection.{Seq, mutable}
 
 object QueryResult {
-  def fromVertices(query: Query): Seq[QueryRequestWithResult] = {
+  def fromVertices(query: Query): StepInnerResult = {
     if (query.steps.isEmpty || query.steps.head.queryParams.isEmpty) {
-      Seq.empty
+      StepInnerResult.Empty
     } else {
       val queryParam = query.steps.head.queryParams.head
       val label = queryParam.label
       val currentTs = System.currentTimeMillis()
       val propsWithTs = Map(LabelMeta.timeStampSeq ->
         InnerValLikeWithTs(InnerVal.withLong(currentTs, label.schemaVersion), currentTs))
-      for {
+      val edgeWithScoreLs = for {
         vertex <- query.vertices
       } yield {
         val edge = Edge(vertex, vertex, queryParam.labelWithDir, propsWithTs = propsWithTs)
         val edgeWithScore = EdgeWithScore(edge, Graph.DefaultScore)
-        QueryRequestWithResult(QueryRequest(query, -1, vertex, queryParam),
-          QueryResult(edgeWithScoreLs = Seq(edgeWithScore)))
+        edgeWithScore
+//        QueryRequestWithResult(QueryRequest(query, -1, vertex, queryParam),
+//          QueryResult(edgeWithScoreLs = Seq(edgeWithScore)))
       }
+      StepInnerResult(edgesWithScoreLs = edgeWithScoreLs)
     }
   }
 }
 /** inner traverse */
-case class QueryRequestWithResult(queryRequest: QueryRequest,
-                                  queryResult: QueryResult)
-
+object StepInnerResult {
+  val Failure = StepInnerResult(Nil, true)
+  val Empty = StepInnerResult(Nil)
+}
+case class StepInnerResult(edgesWithScoreLs: Seq[EdgeWithScore],
+                           isFailure: Boolean = false) {
+  val isEmpty = edgesWithScoreLs.isEmpty
+}
+//case class QueryRequestWithResult(queryRequest: QueryRequest,
+//                                  queryResult: QueryResult)
+//
 case class QueryRequest(query: Query,
                         stepIdx: Int,
                         vertex: Vertex,
                         queryParam: QueryParam)
-
-
-case class QueryResult(edgeWithScoreLs: Seq[EdgeWithScore] = Nil,
-                       tailCursor: Array[Byte] = Array.empty,
-                       timestamp: Long = System.currentTimeMillis(),
-                       isFailure: Boolean = false)
+//
+//
+//case class QueryResult(edgeWithScoreLs: Seq[EdgeWithScore] = Nil,
+//                       tailCursor: Array[Byte] = Array.empty,
+//                       timestamp: Long = System.currentTimeMillis(),
+//                       isFailure: Boolean = false)
 
 case class EdgeWithScore(edge: Edge, score: Double)
 
@@ -76,31 +86,8 @@ object StepResult {
   type Values = Seq[S2EdgeWithScore]
   type GroupByKey = Seq[Option[Any]]
   val EmptyOrderByValues = (None, None, None, None)
-  val Empty = StepResult(Nil, Nil, Nil, Nil)
+  val Empty = StepResult(Nil, Nil, Nil)
 
-//  private def toHashKey(edge: Edge, queryParam: QueryParam, fields: Seq[String], delimiter: String = ","): Int = {
-//    val ls = for {
-//      field <- fields
-//    } yield {
-//        field match {
-//          case "from" | "_from" => edge.srcVertex.innerId.toIdString()
-//          case "to" | "_to" => edge.tgtVertex.innerId.toIdString()
-//          case "label" => edge.labelWithDir.labelId
-//          case "direction" => JsString(GraphUtil.fromDirection(edge.labelWithDir.dir))
-//          case "_timestamp" | "timestamp" => edge.ts
-//          case _ =>
-//            queryParam.label.metaPropsInvMap.get(field) match {
-//              case None => throw new RuntimeException(s"unknow column: $field")
-//              case Some(labelMeta) => edge.propsWithTs.get(labelMeta.seq) match {
-//                case None => labelMeta.defaultValue
-//                case Some(propVal) => propVal
-//              }
-//            }
-//        }
-//      }
-//    val ret = ls.hashCode()
-//    ret
-//  }
 
   def mergeOrdered(left: StepResult.Values,
                    right: StepResult.Values,
@@ -213,17 +200,7 @@ object StepResult {
 //    }
 //  }
 
-  def filterEdgeWithScoreLs(graph: Graph,
-                            result: QueryResult,
-                            degreeEdges: ListBuffer[S2EdgeWithScore]): Seq[EdgeWithScore] = {
-    val head = result.edgeWithScoreLs.head
-    if (head.edge.isDegree) {
-      degreeEdges += S2EdgeWithScore(S2Edge(graph, head.edge), head.score, parentEdges = Nil)
-      result.edgeWithScoreLs.tail
-    } else {
-      result.edgeWithScoreLs
-    }
-  }
+
   def orderBy(queryOption: QueryOption, notOrdered: Values): Values = {
     import OrderingUtil._
 
@@ -315,7 +292,7 @@ object StepResult {
       aggregated = agg(groupByKey) if aggregated.nonEmpty
     } yield groupByKey -> (scoreSum, aggregated)
 
-    StepResult(results = ordered, grouped = grouped, Nil, degrees)
+    StepResult(results = ordered, grouped = grouped, degrees)
   }
   def filterOut(queryOption: QueryOption,
                 baseStepResult: StepResult,
@@ -339,19 +316,24 @@ object StepResult {
     } yield key -> (newScoreSum, in)
 
 
-    StepResult(results = filteredResults, grouped = grouped,
-      queryRequestWithResultLs = Nil, baseStepResult.degreeEdges)
+    StepResult(results = filteredResults, grouped = grouped, baseStepResult.degreeEdges)
   }
-  //TODO: OrderBy, Select is not implemented.
+
   def apply(graph: Graph,
             queryOption: QueryOption,
-            queryRequestWithResultLs: Seq[QueryRequestWithResult]): StepResult = {
+            stepInnerResult: StepInnerResult): StepResult = {
 
     val degreeEdges = new ListBuffer[S2EdgeWithScore]()
     val results = for {
-      requestWithResult <- queryRequestWithResultLs
-      (request, result) = QueryRequestWithResult.unapply(requestWithResult).get if result.edgeWithScoreLs.nonEmpty
-      edgeWithScore <- filterEdgeWithScoreLs(graph, result, degreeEdges)
+      edgeWithScore <- {
+        val head = stepInnerResult.edgesWithScoreLs.head
+        if (head.edge.isDegree) {
+          degreeEdges += S2EdgeWithScore(S2Edge(graph, head.edge), head.score, parentEdges = Nil)
+          stepInnerResult.edgesWithScoreLs.tail
+        } else {
+          stepInnerResult.edgesWithScoreLs
+        }
+      }
     } yield {
         val s2Edge = S2Edge.apply(graph, edgeWithScore.edge)
         val orderByValues =
@@ -384,8 +366,7 @@ object StepResult {
         agg.toSeq.sortBy(_._2._1 * -1)
       }
 
-    StepResult(results = ordered, grouped = grouped,
-      queryRequestWithResultLs = queryRequestWithResultLs, degreeEdges)
+    StepResult(results = ordered, grouped = grouped, degreeEdges)
   }
 }
 
@@ -396,5 +377,4 @@ case class S2EdgeWithScore(s2Edge: S2Edge,
 
 case class StepResult(results: StepResult.Values,
                       grouped: Seq[(StepResult.GroupByKey, (Double, StepResult.Values))],
-                      queryRequestWithResultLs: Seq[QueryRequestWithResult],
                       degreeEdges: StepResult.Values)
