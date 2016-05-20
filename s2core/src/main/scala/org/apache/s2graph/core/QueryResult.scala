@@ -337,8 +337,7 @@ object StepResult {
       }
     /** ordered flatten result */
     val ordered = orderBy(queryOption, results)
-    logger.debug(s"[Before]: ${results.mkString("\n")}")
-    logger.debug(s"[After]: ${ordered.mkString("\n")}")
+
     /** ordered grouped result */
     val grouped =
       if (queryOption.groupByColumns.isEmpty) Nil

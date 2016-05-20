@@ -65,7 +65,7 @@ class QueryTest extends IntegrateCommon with BeforeAndAfterEach {
 //    edges = getEdgesSync(queryWithInterval(2, index1, "weight", 10, 20)) // test interval on weight index
 //    (edges \ "size").toString should be("2")
 //  }
-
+//
 //  test("get edge with where condition") {
 //    def queryWhere(id: Int, where: String) = Json.parse(
 //      s"""
@@ -100,7 +100,7 @@ class QueryTest extends IntegrateCommon with BeforeAndAfterEach {
 //    result = getEdgesSync(queryWhere(2, "_from=2 and weight in (10, 20)"))
 //    (result \ "results").as[List[JsValue]].size should be(2)
 //  }
-
+//
 //  test("get edge exclude") {
 //    def queryExclude(id: Int) = Json.parse(
 //      s"""
@@ -188,80 +188,80 @@ class QueryTest extends IntegrateCommon with BeforeAndAfterEach {
 //    (result \ "results" \\ "to").map(_.toString).sorted should be((result \ "results" \\ "from").map(_.toString).sorted)
 //  }
 //
-  test("index") {
-    def queryIndex(ids: Seq[Int], indexName: String) = {
-      val $from = Json.arr(
-        Json.obj("serviceName" -> testServiceName,
-          "columnName" -> testColumnName,
-          "ids" -> ids))
-
-      val $step = Json.arr(Json.obj("label" -> testLabelName, "index" -> indexName))
-      val $steps = Json.arr(Json.obj("step" -> $step))
-
-      val js = Json.obj("withScore" -> false, "srcVertices" -> $from, "steps" -> $steps)
-      js
-    }
-
-    // weight order
-    // ["weight", "time", "is_hidden", "is_blocked"]
-    var result = getEdgesSync(queryIndex(Seq(0), "idx_1"))
-    ((result \ "results").as[List[JsValue]].head \\ "weight").head should be(JsNumber(40))
-
-    // timestamp order
-    result = getEdgesSync(queryIndex(Seq(0), "idx_2"))
-    ((result \ "results").as[List[JsValue]].head \\ "weight").head should be(JsNumber(30))
-  }
-//
-//
-//  test("duration") {
-//    def queryDuration(ids: Seq[Int], from: Int, to: Int) = {
+//  test("index") {
+//    def queryIndex(ids: Seq[Int], indexName: String) = {
 //      val $from = Json.arr(
 //        Json.obj("serviceName" -> testServiceName,
 //          "columnName" -> testColumnName,
 //          "ids" -> ids))
 //
-//      val $step = Json.arr(Json.obj(
-//        "label" -> testLabelName, "direction" -> "out", "offset" -> 0, "limit" -> 100,
-//        "duration" -> Json.obj("from" -> from, "to" -> to)))
-//
+//      val $step = Json.arr(Json.obj("label" -> testLabelName, "index" -> indexName))
 //      val $steps = Json.arr(Json.obj("step" -> $step))
 //
-//      Json.obj("srcVertices" -> $from, "steps" -> $steps)
+//      val js = Json.obj("withScore" -> false, "srcVertices" -> $from, "steps" -> $steps)
+//      js
 //    }
 //
-//    // get all
-//    var result = getEdgesSync(queryDuration(Seq(0, 2), from = 0, to = 5000))
-//    (result \ "results").as[List[JsValue]].size should be(4)
-//    // inclusive, exclusive
-//    result = getEdgesSync(queryDuration(Seq(0, 2), from = 1000, to = 4000))
-//    (result \ "results").as[List[JsValue]].size should be(3)
+//    // weight order
+//    // ["weight", "time", "is_hidden", "is_blocked"]
+//    var result = getEdgesSync(queryIndex(Seq(0), "idx_1"))
+//    ((result \ "results").as[List[JsValue]].head \\ "weight").head should be(JsNumber(40))
 //
-//    result = getEdgesSync(queryDuration(Seq(0, 2), from = 1000, to = 2000))
-//    (result \ "results").as[List[JsValue]].size should be(1)
-//
-//    val bulkEdges = Seq(
-//      toEdge(1001, insert, e, 0, 1, testLabelName, Json.obj(weight -> 10, is_hidden -> true)),
-//      toEdge(2002, insert, e, 0, 2, testLabelName, Json.obj(weight -> 20, is_hidden -> false)),
-//      toEdge(3003, insert, e, 2, 0, testLabelName, Json.obj(weight -> 30)),
-//      toEdge(4004, insert, e, 2, 1, testLabelName, Json.obj(weight -> 40))
-//    )
-//    insertEdgesSync(bulkEdges: _*)
-//
-//    // duration test after udpate
-//    // get all
-//    result = getEdgesSync(queryDuration(Seq(0, 2), from = 0, to = 5000))
-//    (result \ "results").as[List[JsValue]].size should be(4)
-//
-//    // inclusive, exclusive
-//    result = getEdgesSync(queryDuration(Seq(0, 2), from = 1000, to = 4000))
-//    (result \ "results").as[List[JsValue]].size should be(3)
-//
-//    result = getEdgesSync(queryDuration(Seq(0, 2), from = 1000, to = 2000))
-//    (result \ "results").as[List[JsValue]].size should be(1)
-//
+//    // timestamp order
+//    result = getEdgesSync(queryIndex(Seq(0), "idx_2"))
+//    ((result \ "results").as[List[JsValue]].head \\ "weight").head should be(JsNumber(30))
 //  }
 //
 //
+  test("duration") {
+    def queryDuration(ids: Seq[Int], from: Int, to: Int) = {
+      val $from = Json.arr(
+        Json.obj("serviceName" -> testServiceName,
+          "columnName" -> testColumnName,
+          "ids" -> ids))
+
+      val $step = Json.arr(Json.obj(
+        "label" -> testLabelName, "direction" -> "out", "offset" -> 0, "limit" -> 100,
+        "duration" -> Json.obj("from" -> from, "to" -> to)))
+
+      val $steps = Json.arr(Json.obj("step" -> $step))
+
+      Json.obj("srcVertices" -> $from, "steps" -> $steps)
+    }
+
+    // get all
+    var result = getEdgesSync(queryDuration(Seq(0, 2), from = 0, to = 5000))
+    (result \ "results").as[List[JsValue]].size should be(4)
+    // inclusive, exclusive
+    result = getEdgesSync(queryDuration(Seq(0, 2), from = 1000, to = 4000))
+    (result \ "results").as[List[JsValue]].size should be(3)
+
+    result = getEdgesSync(queryDuration(Seq(0, 2), from = 1000, to = 2000))
+    (result \ "results").as[List[JsValue]].size should be(1)
+
+    val bulkEdges = Seq(
+      toEdge(1001, insert, e, 0, 1, testLabelName, Json.obj(weight -> 10, is_hidden -> true)),
+      toEdge(2002, insert, e, 0, 2, testLabelName, Json.obj(weight -> 20, is_hidden -> false)),
+      toEdge(3003, insert, e, 2, 0, testLabelName, Json.obj(weight -> 30)),
+      toEdge(4004, insert, e, 2, 1, testLabelName, Json.obj(weight -> 40))
+    )
+    insertEdgesSync(bulkEdges: _*)
+
+    // duration test after udpate
+    // get all
+    result = getEdgesSync(queryDuration(Seq(0, 2), from = 0, to = 5000))
+    (result \ "results").as[List[JsValue]].size should be(4)
+
+    // inclusive, exclusive
+    result = getEdgesSync(queryDuration(Seq(0, 2), from = 1000, to = 4000))
+    (result \ "results").as[List[JsValue]].size should be(3)
+
+    result = getEdgesSync(queryDuration(Seq(0, 2), from = 1000, to = 2000))
+    (result \ "results").as[List[JsValue]].size should be(1)
+
+  }
+
+
 //  test("return tree") {
 //    def queryParents(id: Long) = Json.parse(
 //      s"""
