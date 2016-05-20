@@ -343,6 +343,7 @@ case class S2Edge(graph: Graph,
         case LabelMeta.to.name | "to" => Option(tgtId)
         case "label" => Option(labelName)
         case "direction" => Option(direction)
+        case LabelMeta.timestamp.name | "timestamp" => Option(ts)
         case _ =>
           props.get(selectColumn)
       }

@@ -45,16 +45,17 @@ object QueryResult {
 //        QueryRequestWithResult(QueryRequest(query, -1, vertex, queryParam),
 //          QueryResult(edgeWithScoreLs = Seq(edgeWithScore)))
       }
-      StepInnerResult(edgesWithScoreLs = edgeWithScoreLs)
+      StepInnerResult(edgesWithScoreLs = edgeWithScoreLs, Nil, false)
     }
   }
 }
 /** inner traverse */
 object StepInnerResult {
-  val Failure = StepInnerResult(Nil, true)
-  val Empty = StepInnerResult(Nil)
+  val Failure = StepInnerResult(Nil, Nil, true)
+  val Empty = StepInnerResult(Nil, Nil, false)
 }
 case class StepInnerResult(edgesWithScoreLs: Seq[EdgeWithScore],
+                           degreeEdges: Seq[EdgeWithScore],
                            isFailure: Boolean = false) {
   val isEmpty = edgesWithScoreLs.isEmpty
 }
@@ -322,18 +323,10 @@ object StepResult {
   def apply(graph: Graph,
             queryOption: QueryOption,
             stepInnerResult: StepInnerResult): StepResult = {
+    stepInnerResult.edgesWithScoreLs.foreach(t => logger.debug(s"[AA]: $t"))
 
-    val degreeEdges = new ListBuffer[S2EdgeWithScore]()
     val results = for {
-      edgeWithScore <- {
-        val head = stepInnerResult.edgesWithScoreLs.head
-        if (head.edge.isDegree) {
-          degreeEdges += S2EdgeWithScore(S2Edge(graph, head.edge), head.score, parentEdges = Nil)
-          stepInnerResult.edgesWithScoreLs.tail
-        } else {
-          stepInnerResult.edgesWithScoreLs
-        }
-      }
+      edgeWithScore <- stepInnerResult.edgesWithScoreLs
     } yield {
         val s2Edge = S2Edge.apply(graph, edgeWithScore.edge)
         val orderByValues =
@@ -344,7 +337,8 @@ object StepResult {
       }
     /** ordered flatten result */
     val ordered = orderBy(queryOption, results)
-
+    logger.debug(s"[Before]: ${results.mkString("\n")}")
+    logger.debug(s"[After]: ${ordered.mkString("\n")}")
     /** ordered grouped result */
     val grouped =
       if (queryOption.groupByColumns.isEmpty) Nil
@@ -366,7 +360,8 @@ object StepResult {
         agg.toSeq.sortBy(_._2._1 * -1)
       }
 
-    StepResult(results = ordered, grouped = grouped, degreeEdges)
+    val degrees = stepInnerResult.degreeEdges.map(t => S2EdgeWithScore(S2Edge.apply(graph, t.edge), t.score))
+    StepResult(results = ordered, grouped = grouped, degreeEdges = degrees)
   }
 }
 

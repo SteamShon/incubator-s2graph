@@ -281,10 +281,23 @@ class AsynchbaseStorage(override val graph: Graph,
     def fetchInner(hbaseRpc: AnyRef): Deferred[StepInnerResult] = {
       fetchKeyValuesInner(hbaseRpc).withCallback { kvs =>
         val edgeWithScores = toEdges(kvs, queryRequest.queryParam, prevStepScore, isInnerCall, parentEdges)
-        val resultEdgesWithScores = if (queryRequest.queryParam.sample >= 0) {
-          sample(queryRequest, edgeWithScores, queryRequest.queryParam.sample)
-        } else edgeWithScores
-        StepInnerResult(edgesWithScoreLs = resultEdgesWithScores)
+        if (edgeWithScores.isEmpty) StepInnerResult.Empty
+        else {
+          val head = edgeWithScores.head
+          val (degreeEdges, indexEdges) =
+            if (head.edge.isDegree) (Seq(head), edgeWithScores.tail)
+            else (Nil, edgeWithScores)
+
+          val sampled = if (queryRequest.queryParam.sample >= 0) {
+            sample(queryRequest, indexEdges, queryRequest.queryParam.sample)
+          } else indexEdges
+          
+          StepInnerResult(edgesWithScoreLs = sampled, degreeEdges)
+        }
+
+
+
+
 //        QueryResult(resultEdgesWithScores, tailCursor = kvs.lastOption.map(_.key).getOrElse(Array.empty[Byte]))
         //        QueryRequestWithResult(queryRequest, QueryResult(resultEdgesWithScores, tailCursor = kvs.lastOption.map(_.key).getOrElse(Array.empty)))
 

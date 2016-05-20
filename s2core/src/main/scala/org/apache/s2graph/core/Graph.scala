@@ -19,21 +19,23 @@
 
 package org.apache.s2graph.core
 
+import java.util
+import java.util.concurrent.ConcurrentHashMap
+
 import com.typesafe.config.{Config, ConfigFactory}
+import org.apache.s2graph.core.JSONParser._
 import org.apache.s2graph.core.mysqls.{Label, Model}
 import org.apache.s2graph.core.parsers.{Where, WhereParser}
 import org.apache.s2graph.core.storage.hbase.AsynchbaseStorage
 import org.apache.s2graph.core.types.{InnerVal, LabelWithDirection}
 import org.apache.s2graph.core.utils.logger
-import JSONParser._
 import play.api.libs.json.{JsObject, Json}
+
 import scala.collection.JavaConversions._
 import scala.collection._
 import scala.collection.mutable.ListBuffer
 import scala.concurrent._
 import scala.util.Try
-import java.util
-import java.util.concurrent.ConcurrentHashMap
 
 
 object Graph {
@@ -120,7 +122,7 @@ object Graph {
               }
               case _ => innerVal.toString().toLong
             }
-          } getOrElse(edge.ts)
+          } getOrElse (edge.ts)
         } catch {
           case e: Exception =>
             logger.error(s"processTimeDecay error. ${edge.toLogString}", e)
@@ -166,25 +168,24 @@ object Graph {
       edgeWithScoreSorted.append((hashKey, filterHashKey, convertedEdge, newScore))
     }
   }
-//
-//  def aggregateResults(queryParamResult: Result,
-//                       edgesToInclude: util.HashSet[FilterHashKey],
-//                       edgesToExclude: util.HashSet[FilterHashKey]): Seq[EdgeWithScore] = {
-//
-//    val (duplicateEdges, resultEdges, edgeWithScoreSorted, queryParam) = queryParamResult
-//    for {
-//      (hashKey, filterHashKey, edge, _) <- edgeWithScoreSorted if !edgesToExclude.contains(filterHashKey) || edgesToInclude.contains(filterHashKey)
-//      score = resultEdges.get(hashKey)._3
-//      (duplicateEdge, aggregatedScore) <- fetchDuplicatedEdges(edge, score, hashKey, duplicateEdges) if aggregatedScore >= queryParam.threshold
-//    } yield EdgeWithScore(duplicateEdge, aggregatedScore)
-//    StepInnerResult(edgesWithScoreLs = edgesWithScores)
-//  }
 
-  def fetchDuplicatedEdges(edge: Edge,
-                           score: Double,
-                           hashKey: HashKey,
-                           duplicateEdges: ConcurrentHashMap[HashKey, ListBuffer[(Edge, Double)]]) = {
-    (edge -> score) +: (if (duplicateEdges.containsKey(hashKey)) duplicateEdges.get(hashKey) else Seq.empty)
+  def processDuplicates(queryParam: QueryParam,
+                        duplicates: Seq[(FilterHashKey, EdgeWithScore)]): Seq[(FilterHashKey, EdgeWithScore)] = {
+    if (queryParam.label.consistencyLevel != "strong") {
+      //TODO:
+      queryParam.duplicatePolicy match {
+        case Query.DuplicatePolicy.First => Seq(duplicates.head)
+        case Query.DuplicatePolicy.Raw => duplicates
+        case Query.DuplicatePolicy.CountSum =>
+          val countSum = duplicates.size
+          Seq(duplicates.head._1 -> duplicates.head._2.copy(score = countSum))
+        case _ =>
+          val scoreSum = duplicates.foldLeft(0.0) { case (prev, current) => prev + current._2.score }
+          Seq(duplicates.head._1 -> duplicates.head._2.copy(score = scoreSum))
+      }
+    } else {
+      duplicates
+    }
   }
 
   def queryResultWithFilter(stepInnerResult: StepInnerResult, whereFilter: Where) = {
@@ -214,26 +215,29 @@ object Graph {
         val edgesToExclude = new util.HashSet[FilterHashKey]()
         val edgesToInclude = new util.HashSet[FilterHashKey]()
 
-        val queryParamResultLs = new ListBuffer[Result]
+        //        val queryParamResultLs = new ListBuffer[Result]
+        val agg = new mutable.HashMap[HashKey, ListBuffer[(FilterHashKey, EdgeWithScore)]]()
+        val params = new mutable.HashMap[HashKey, QueryParam]()
 
         queryParams.zip(queryRequestWithResultLs).foreach { case (queryParam, stepInnerResult) =>
-          val duplicateEdges = new util.concurrent.ConcurrentHashMap[HashKey, ListBuffer[(Edge, Double)]]()
-          val resultEdges = new util.concurrent.ConcurrentHashMap[HashKey, (FilterHashKey, Edge, Double)]()
-          val edgeWithScoreSorted = new ListBuffer[(HashKey, FilterHashKey, Edge, Double)]
+          //          val duplicateEdges = new util.concurrent.ConcurrentHashMap[HashKey, ListBuffer[(Edge, Double)]]()
+          //          val resultEdges = new util.concurrent.ConcurrentHashMap[HashKey, (FilterHashKey, Edge, Double)]()
+          //          val edgeWithScoreSorted = new ListBuffer[(HashKey, FilterHashKey, Edge, Double)]
           val labelWeight = step.labelWeights.getOrElse(queryParam.labelWithDir.labelId, 1.0)
 
-          // store degree value with Array.empty so if degree edge exist, it comes at very first.
-          def checkDegree() = stepInnerResult.edgesWithScoreLs.headOption.exists { edgeWithScore =>
-            edgeWithScore.edge.isDegree
-          }
-          var isDegree = checkDegree()
 
           val includeExcludeKey = queryParam.labelWithDir.labelId -> queryParam.labelWithDir.dir
           val shouldBeExcluded = excludeLabelWithDirSet.contains(includeExcludeKey)
           val shouldBeIncluded = includeLabelWithDirSet.contains(includeExcludeKey)
 
-          queryResultWithFilter(stepInnerResult, queryParam.where.get).foreach { edgeWithScore =>
-            val (edge, score) = EdgeWithScore.unapply(edgeWithScore).get
+          val where = queryParam.where.get
+          val isDegree = false
+          for {
+            edgeWithScore <- stepInnerResult.edgesWithScoreLs
+            if where == WhereParser.success || where.filter(edgeWithScore.edge)
+            (edge, score) = EdgeWithScore.unapply(edgeWithScore).get
+          } {
+
             if (queryParam.transformer.isDefault) {
               val convertedEdge = edge
 
@@ -248,7 +252,10 @@ object Graph {
                 }
                 val tsVal = processTimeDecay(queryParam, convertedEdge)
                 val newScore = labelWeight * score * tsVal
-                aggregateScore(newScore, resultEdges, duplicateEdges, edgeWithScoreSorted, hashKey, filterHashKey, queryParam, convertedEdge)
+                val buffer = agg.getOrElseUpdate(hashKey, new ListBuffer[(FilterHashKey, EdgeWithScore)]())
+                buffer += ((filterHashKey, EdgeWithScore(convertedEdge, newScore)))
+                params += (hashKey -> queryParam)
+                //                aggregateScore(newScore, resultEdges, duplicateEdges, edgeWithScoreSorted, hashKey, filterHashKey, queryParam, convertedEdge)
               }
             } else {
               convertEdges(queryParam, edge, nextStepOpt).foreach { convertedEdge =>
@@ -263,25 +270,28 @@ object Graph {
                   }
                   val tsVal = processTimeDecay(queryParam, convertedEdge)
                   val newScore = labelWeight * score * tsVal
-                  aggregateScore(newScore, resultEdges, duplicateEdges, edgeWithScoreSorted, hashKey, filterHashKey, queryParam, convertedEdge)
+                  val buffer = agg.getOrElseUpdate(hashKey, new ListBuffer[(FilterHashKey, EdgeWithScore)]())
+                  buffer += ((filterHashKey, EdgeWithScore(convertedEdge, newScore)))
+                  params += (hashKey -> queryParam)
+                  //                  aggregateScore(newScore, resultEdges, duplicateEdges, edgeWithScoreSorted, hashKey, filterHashKey, queryParam, convertedEdge)
                 }
               }
             }
-            isDegree = false
           }
-          val ret = (duplicateEdges, resultEdges, edgeWithScoreSorted, queryParam)
-          queryParamResultLs.append(ret)
+
         }
 
         val edgeWithScoreLs = for {
-          queryParamResult <- queryParamResultLs
-          (duplicateEdges, resultEdges, edgeWithScoreSorted, queryParam) = queryParamResult
-          (hashKey, filterHashKey, edge, _) <- edgeWithScoreSorted if !edgesToExclude.contains(filterHashKey) || edgesToInclude.contains(filterHashKey)
-          score = resultEdges.get(hashKey)._3
-          (duplicateEdge, aggregatedScore) <- fetchDuplicatedEdges(edge, score, hashKey, duplicateEdges) if aggregatedScore >= queryParam.threshold
-        } yield EdgeWithScore(duplicateEdge, aggregatedScore)
+          (hashKey, duplicates) <- agg
+          (filterHashKey, edgeWithScore) <- duplicates
+          if !edgesToExclude.contains(filterHashKey) || edgesToInclude.contains(filterHashKey)
+          queryParam = params(hashKey)
+          (filterHashKey, newEdgeWithScore) <- processDuplicates(queryParam, duplicates)
+          if newEdgeWithScore.score >= queryParam.threshold
+        } yield newEdgeWithScore
 
-        StepInnerResult(edgeWithScoreLs)
+        val degrees = queryRequestWithResultLs.flatMap(_.degreeEdges)
+        StepInnerResult(edgesWithScoreLs = edgeWithScoreLs.toSeq, degreeEdges = degrees)
       }
     }
   }
@@ -409,8 +419,8 @@ class Graph(_config: Config)(implicit val ec: ExecutionContext) {
                 id: Any,
                 props: Map[String, Any] = Map.empty,
                 ts: Long = System.currentTimeMillis(),
-                 operation: String = "insert",
-                 withWait: Boolean = true): Future[Boolean] = {
+                operation: String = "insert",
+                withWait: Boolean = true): Future[Boolean] = {
     val innerVertices = Seq(S2Vertex(this, serviceName, columnName, id, props.toMap, ts, operation).vertex)
     storage.mutateVertices(innerVertices, withWait).map(_.headOption.getOrElse(false))
   }

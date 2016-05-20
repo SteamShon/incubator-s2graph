@@ -534,7 +534,7 @@ abstract class Storage[R](val graph: Graph,
 //      logger.debug(s"delete edge from deleteAll: ${edgeToDelete.edge.toLogString}")
       edgeToDelete
     }
-    StepInnerResult(edgesWithScoreLs = edgeWithScoreLs)
+    StepInnerResult(edgesWithScoreLs = edgeWithScoreLs, Nil)
   }
 
   protected def deleteAllFetchedEdgesLs(stepInnerResult: StepInnerResult,
@@ -652,7 +652,7 @@ abstract class Storage[R](val graph: Graph,
     try {
       val schemaVer = queryParam.label.schemaVersion
       val indexEdgeOpt = indexEdgeDeserializer(schemaVer).fromKeyValues(queryParam, Seq(kv), queryParam.label.schemaVersion, cacheElementOpt)
-//      logger.debug(s"toEdge: $kv\n$indexEdgeOpt")
+      logger.debug(s"toEdge: $kv\n$indexEdgeOpt")
       indexEdgeOpt.map(indexEdge => indexEdge.toEdge.copy(parentEdges = parentEdges))
     } catch {
       case ex: Exception =>
