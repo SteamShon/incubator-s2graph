@@ -326,7 +326,7 @@ object Graph {
         }
 
         val degrees = queryRequestWithResultLs.flatMap(_.degreeEdges)
-        logger.debug(s"[FilterEdgesSize]: ${edgeWithScoreLs.size}")
+//        logger.debug(s"[FilterEdgesSize]: ${edgeWithScoreLs.size}")
         StepInnerResult(edgesWithScoreLs = edgeWithScoreLs, degreeEdges = degrees)
       }
     }

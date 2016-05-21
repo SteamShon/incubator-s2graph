@@ -323,7 +323,7 @@ object StepResult {
   def apply(graph: Graph,
             queryOption: QueryOption,
             stepInnerResult: StepInnerResult): StepResult = {
-    logger.debug(s"[BeforePostProcess]: ${stepInnerResult.edgesWithScoreLs.size}")
+//    logger.debug(s"[BeforePostProcess]: ${stepInnerResult.edgesWithScoreLs.size}")
 
     val results = for {
       edgeWithScore <- stepInnerResult.edgesWithScoreLs
