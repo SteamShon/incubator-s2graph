@@ -288,9 +288,13 @@ class AsynchbaseStorage(override val graph: Graph,
             if (head.edge.isDegree) (Seq(head), edgeWithScores.tail)
             else (Nil, edgeWithScores)
 
+          val normalized =
+            if (queryRequest.queryParam.shouldNormalize) normalize(indexEdges)
+            else indexEdges
+
           val sampled = if (queryRequest.queryParam.sample >= 0) {
-            sample(queryRequest, indexEdges, queryRequest.queryParam.sample)
-          } else indexEdges
+            sample(queryRequest, normalized, queryRequest.queryParam.sample)
+          } else normalized
           
           StepInnerResult(edgesWithScoreLs = sampled, degreeEdges)
         }

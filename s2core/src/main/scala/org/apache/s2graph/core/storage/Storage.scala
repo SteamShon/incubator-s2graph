@@ -1205,6 +1205,13 @@ abstract class Storage[R](val graph: Graph,
     else randomInt(sampleNumber, range, set + Random.nextInt(range))
   }
 
+  protected def normalize(edgeWithScores: Seq[EdgeWithScore]): Seq[EdgeWithScore] = {
+    val sum = edgeWithScores.foldLeft(0.0) { case (acc, cur) => acc + cur.score }
+    edgeWithScores.map { edgeWithScore =>
+      edgeWithScore.copy(score = edgeWithScore.score / sum)
+    }
+  }
+
   protected def sample(queryRequest: QueryRequest, edges: Seq[EdgeWithScore], n: Int): Seq[EdgeWithScore] = {
     if (edges.size <= n){
       edges
