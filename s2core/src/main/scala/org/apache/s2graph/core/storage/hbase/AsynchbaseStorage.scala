@@ -242,7 +242,7 @@ class AsynchbaseStorage(override val config: Config)(implicit ec: ExecutionConte
         scanner.setMaxNumRows(queryParam.limit)
         scanner.setMaxTimestamp(maxTs)
         scanner.setMinTimestamp(minTs)
-        scanner.setRpcTimeout(queryParam.rpcTimeoutInMillis)
+//        scanner.setRpcTimeout(queryParam.rpcTimeoutInMillis)
         // SET option for this rpc properly.
         scanner
       case _ =>
@@ -250,16 +250,19 @@ class AsynchbaseStorage(override val config: Config)(implicit ec: ExecutionConte
           if (queryParam.tgtVertexInnerIdOpt.isDefined) new GetRequest(label.hbaseTableName.getBytes, rowKey, edgeCf, qualifier)
           else new GetRequest(label.hbaseTableName.getBytes, rowKey, edgeCf)
 
+        val filterList = new util.ArrayList[ScanFilter]()
+        filterList.add(new ColumnPaginationFilter(queryParam.limit, queryParam.offset))
+
         get.maxVersions(1)
         get.setFailfast(true)
-        get.setMaxResultsPerColumnFamily(queryParam.limit)
-        get.setRowOffsetPerColumnFamily(queryParam.offset)
         get.setMinTimestamp(minTs)
         get.setMaxTimestamp(maxTs)
         get.setTimeout(queryParam.rpcTimeoutInMillis)
 
-        if (queryParam.columnRangeFilter != null) get.setFilter(queryParam.columnRangeFilter)
-
+        if (queryParam.columnRangeFilter != null) {
+          filterList.add(queryParam.columnRangeFilter)
+        }
+        get.setFilter(new FilterList(filterList, FilterList.Operator.MUST_PASS_ALL))
         get
     }
   }
