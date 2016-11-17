@@ -3,32 +3,30 @@ package org.apache.s2graph.core.tinkerpop.structure;
 import org.apache.commons.math3.util.Pair;
 import org.apache.s2graph.core.mysqls.Service;
 import org.apache.s2graph.core.mysqls.ServiceColumn;
-import org.apache.tinkerpop.gremlin.structure.T;
 import org.apache.tinkerpop.gremlin.structure.util.ElementHelper;
-
-import java.util.ArrayList;
-import java.util.List;
 import java.util.Map;
 
 public class S2VertexIdUtil {
-
     public static Pair<S2VertexId, Map<String, Object>> toS2VertexParam(Object... keyValues) {
         Map<String, Object> params = ElementHelper.asMap(keyValues);
 
         // TODO: error check and validataion. extract constant string into common.
-        Service service = (Service) params.get("serviceName");
-        ServiceColumn column = (ServiceColumn) params.get("columnName");
-        Object id = params.get(T.id);
+        Service service = (Service) params.get("service");
+        ServiceColumn column = (ServiceColumn) params.get("column");
+        Object id = params.get("id");
+
+
 
         S2VertexId s2VertexId = new S2VertexId(service, column, id);
 
-        params.remove("serviceName");
-        params.remove("columnName");
-        params.remove(T.id);
+        System.out.println(s2VertexId.toString());
+
+        params.remove("service");
+        params.remove("column");
+        params.remove("id");
 
         return new Pair(s2VertexId, params);
     }
-//
 //    public static List<S2VertexId> toVertexIds(Object... vertexIds) {
 //        List<S2VertexId> s2VertexIds = new ArrayList<>();
 //        List<Object> others = new ArrayList<>();

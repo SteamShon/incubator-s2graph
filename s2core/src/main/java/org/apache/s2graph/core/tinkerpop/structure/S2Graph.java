@@ -49,8 +49,11 @@ public class S2Graph implements Graph {
     @Override
     public Vertex addVertex(Object... keyValues) {
         S2Vertex s2Vertex = new S2Vertex(this, keyValues);
-        org.apache.s2graph.core.Vertex innerV = org.apache.s2graph.core.Vertex.fromS2Vertex(s2Vertex);
+        System.out.println(s2Vertex.toString());
+
         try {
+        org.apache.s2graph.core.Vertex innerV = org.apache.s2graph.core.Vertex.fromS2Vertex(s2Vertex);
+
             boolean success = (boolean) Await.result(g.mutateVertex(innerV, true), Duration.apply(10, TimeUnit.SECONDS));
             if (success) return s2Vertex;
             return null;

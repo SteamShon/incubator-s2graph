@@ -17,13 +17,14 @@ public class S2Vertex implements Vertex {
     public S2Vertex(S2Graph graph, Object... keyValues) {
         if (keyValues.length < 6) throw new RuntimeException("not enough parameter for S2VertexId.");
         Pair<S2VertexId, Map<String, Object>> pair = S2VertexIdUtil.toS2VertexParam(keyValues);
+
         this.graph = graph;
         this.vertexId = pair.getFirst();
         this.props = new HashMap<>();
         this.ts = System.currentTimeMillis();
         this.operation = "insert";
         for (Map.Entry<String, Object> e : pair.getSecond().entrySet()) {
-            property(e.getKey(), e.getValue());
+            property(VertexProperty.Cardinality.single, e.getKey(), e.getValue());
         }
     }
 
@@ -101,7 +102,7 @@ public class S2Vertex implements Vertex {
             props.put(key, newProperty);
             return newProperty;
         } else {
-            throw new RuntimeException("only support single cardinalrity currently.");
+            throw new RuntimeException("only support single cardinalrity currently." + cardinality);
         }
     }
 
@@ -169,5 +170,37 @@ public class S2Vertex implements Vertex {
 
     public void setOperation(String operation) {
         this.operation = operation;
+    }
+
+    @Override
+    public String toString() {
+        return "S2Vertex{" +
+                "vertexId=" + vertexId +
+                '}';
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+
+        S2Vertex s2Vertex = (S2Vertex) o;
+
+        if (ts != s2Vertex.ts) return false;
+        if (!graph.equals(s2Vertex.graph)) return false;
+        if (!vertexId.equals(s2Vertex.vertexId)) return false;
+        if (!props.equals(s2Vertex.props)) return false;
+        return operation.equals(s2Vertex.operation);
+
+    }
+
+    @Override
+    public int hashCode() {
+        int result = graph.hashCode();
+        result = 31 * result + vertexId.hashCode();
+        result = 31 * result + props.hashCode();
+        result = 31 * result + (int) (ts ^ (ts >>> 32));
+        result = 31 * result + operation.hashCode();
+        return result;
     }
 }

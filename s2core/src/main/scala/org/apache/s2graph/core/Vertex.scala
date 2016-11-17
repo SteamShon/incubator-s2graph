@@ -23,6 +23,7 @@ import org.apache.s2graph.core.JSONParser._
 import org.apache.s2graph.core.mysqls.{ColumnMeta, Service, ServiceColumn}
 import org.apache.s2graph.core.tinkerpop.structure.{S2Graph, S2Vertex, S2VertexId}
 import org.apache.s2graph.core.types._
+import org.apache.s2graph.core.utils.logger
 import org.apache.tinkerpop.gremlin.structure.VertexProperty
 import play.api.libs.json.Json
 
@@ -149,8 +150,9 @@ object Vertex {
     val service = Service.findByName(serviceName).getOrElse(throw new RuntimeException(s"$serviceName is not found."))
     val column = ServiceColumn.find(service.id.get, columnName).getOrElse(throw new RuntimeException(s"$columnName is not found."))
     val op = GraphUtil.toOp(operation).getOrElse(throw new RuntimeException(s"$operation is not supported."))
+    val innerVal = toInnerVal(id.toString, column.columnType, column.schemaVersion)
 
-    val srcVertexId = VertexId(column.id.get, toInnerVal(id.toString, column.columnType, column.schemaVersion))
+    val srcVertexId = VertexId(column.id.get, innerVal)
     val propsInner = toInnerProperties(column, props, ts)
 
     new Vertex(srcVertexId, ts, propsInner, op)

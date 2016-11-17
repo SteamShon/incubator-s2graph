@@ -25,35 +25,6 @@ public class S2VertexId {
         return new S2Vertex(graph, this);
     }
 
-    @Override
-    public String toString() {
-        return id.toString();
-    }
-
-    @Override
-    public boolean equals(Object o) {
-        if (this == o)
-            return true;
-        if (o == null || getClass() != o.getClass())
-            return false;
-
-        S2VertexId that = (S2VertexId) o;
-        if (serviceName != null ? !serviceName.equals(that.serviceName) : that.serviceName != null)
-            return false;
-        if (columnName != null ? !columnName.equals(that.columnName) : that.columnName != null)
-            return false;
-        return !(id != null ? !id.equals(that.id) : that.id != null);
-
-    }
-
-    @Override
-    public int hashCode() {
-        int result = serviceName != null ? serviceName.hashCode() : 0;
-        result = 31 * result + (columnName != null ? columnName.hashCode() : 0);
-        result = 31 * result + (id != null ? id.hashCode() : 0);
-        return result;
-    }
-
     public Service getService() {
         return service;
     }
@@ -91,5 +62,35 @@ public class S2VertexId {
 
     public void setServiceName(String serviceName) {
         this.serviceName = serviceName;
+    }
+
+    @Override
+    public String toString() {
+        return "S2VertexId{" +
+                "serviceName='" + serviceName + '\'' +
+                ", columnName='" + columnName + '\'' +
+                ", id=" + id +
+                '}';
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+
+        S2VertexId that = (S2VertexId) o;
+
+        if (!id.equals(that.id)) return false;
+        if (!serviceName.equals(that.serviceName)) return false;
+        return columnName.equals(that.columnName);
+
+    }
+
+    @Override
+    public int hashCode() {
+        int result = id.hashCode();
+        result = 31 * result + serviceName.hashCode();
+        result = 31 * result + columnName.hashCode();
+        return result;
     }
 }
