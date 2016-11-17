@@ -21,6 +21,7 @@ package org.apache.s2graph.core
 
 import java.util.regex.Pattern
 
+import org.apache.tinkerpop.gremlin.structure.Direction
 import play.api.libs.json.Json
 
 import scala.util.hashing.MurmurHash3
@@ -155,4 +156,12 @@ object GraphUtil {
     }
   }
 
+  def toDirection(direction: Direction): String = {
+    direction match {
+      case Direction.OUT => "out"
+      case Direction.IN => "in"
+      case Direction.BOTH => "both"
+      case _ => "out"
+    }
+  }
 }

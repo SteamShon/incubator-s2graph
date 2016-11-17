@@ -21,8 +21,13 @@ package org.apache.s2graph.core
 
 import org.apache.s2graph.core.JSONParser._
 import org.apache.s2graph.core.mysqls.{ColumnMeta, Service, ServiceColumn}
-import org.apache.s2graph.core.types.{InnerVal, InnerValLike, SourceVertexId, VertexId}
+import org.apache.s2graph.core.tinkerpop.structure.{S2Graph, S2Vertex, S2VertexId}
+import org.apache.s2graph.core.types._
+import org.apache.tinkerpop.gremlin.structure.VertexProperty
 import play.api.libs.json.Json
+
+import scala.collection.JavaConversions._
+
 case class Vertex(id: VertexId,
                   ts: Long = System.currentTimeMillis(),
                   props: Map[Int, InnerValLike] = Map.empty[Int, InnerValLike],
@@ -33,10 +38,17 @@ case class Vertex(id: VertexId,
 
   val innerIdVal = innerId.value
 
+  val operation = GraphUtil.fromOp(op)
+
   lazy val properties = for {
     (k, v) <- props
     meta <- serviceColumn.metasMap.get(k)
   } yield meta.name -> v.value
+
+  def toProperties: Map[ColumnMeta, Any] = for {
+    (k, v) <- props
+    meta <- serviceColumn.metasMap.get(k)
+  } yield meta -> v.value
 
   def schemaVer = serviceColumn.schemaVersion
 
@@ -123,5 +135,37 @@ object Vertex {
       Map(ColumnMeta.timeStampSeq.toInt -> InnerVal.withLong(ts, column.schemaVersion))
 
     new Vertex(srcVertexId, ts, propsInner, op)
+  }
+
+  def fromS2Vertex(s2Vertex: S2Vertex): Vertex = {
+    val s2VertexId = s2Vertex.getVertexId
+    val serviceName = s2VertexId.getServiceName
+    val columnName = s2VertexId.getColumnName
+    val operation = s2Vertex.getOperation
+    val props = s2Vertex.getProps
+    val ts = s2Vertex.getTs
+    val id = s2VertexId.getId
+
+    val service = Service.findByName(serviceName).getOrElse(throw new RuntimeException(s"$serviceName is not found."))
+    val column = ServiceColumn.find(service.id.get, columnName).getOrElse(throw new RuntimeException(s"$columnName is not found."))
+    val op = GraphUtil.toOp(operation).getOrElse(throw new RuntimeException(s"$operation is not supported."))
+
+    val srcVertexId = VertexId(column.id.get, toInnerVal(id.toString, column.columnType, column.schemaVersion))
+    val propsInner = toInnerProperties(column, props, ts)
+
+    new Vertex(srcVertexId, ts, propsInner, op)
+  }
+
+  private def toInnerProperties(serviceColumn: ServiceColumn,
+                                props: java.util.Map[String, VertexProperty[_]],
+                                ts: Long = System.currentTimeMillis()): Map[Int, InnerValLike] = {
+    val ret = for {
+      entry <- props.entrySet()
+      meta <- serviceColumn.metasInvMap.get(entry.getKey)
+    } yield {
+        val innerValLike = implicitly[CanInnerValLike[Any]].toInnerVal(entry.getValue.value.toString)
+        meta.seq.toInt -> innerValLike
+      }
+    ret.toMap ++ Map(ColumnMeta.timeStampSeq.toInt -> InnerVal.withLong(ts, serviceColumn.schemaVersion))
   }
 }
