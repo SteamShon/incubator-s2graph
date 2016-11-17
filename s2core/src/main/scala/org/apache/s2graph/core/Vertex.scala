@@ -159,6 +159,7 @@ object Vertex {
   private def toInnerProperties(serviceColumn: ServiceColumn,
                                 props: java.util.Map[String, VertexProperty[_]],
                                 ts: Long = System.currentTimeMillis()): Map[Int, InnerValLike] = {
+    import CanInnerValLike._
     val ret = for {
       entry <- props.entrySet()
       meta <- serviceColumn.metasInvMap.get(entry.getKey)

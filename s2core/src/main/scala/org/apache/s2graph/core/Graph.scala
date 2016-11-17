@@ -22,7 +22,6 @@ package org.apache.s2graph.core
 import java.util.concurrent.Executors
 
 import com.typesafe.config.{Config, ConfigFactory}
-import org.apache.hadoop.fs.Path
 import org.apache.s2graph.core.GraphExceptions.{FetchAllStepFailException, FetchTimeoutException, LabelNotExistException}
 import org.apache.s2graph.core.JSONParser._
 import org.apache.s2graph.core.mysqls.{Label, LabelMeta, Model, Service}
@@ -1077,6 +1076,10 @@ class Graph(_config: Config)(implicit val ec: ExecutionContext) {
     }
   }
 
+  def mutateVertex(vertex: Vertex, withWait: Boolean = false): Future[Boolean] = {
+    getStorage(vertex.service).mutateVertices(Seq(vertex), withWait).map(_.headOption.getOrElse(false))
+  }
+
   def mutateVertices(vertices: Seq[Vertex], withWait: Boolean = false): Future[Seq[Boolean]] = {
     val verticesWithIdx = vertices.zipWithIndex
     val futures = verticesWithIdx.groupBy { case (v, idx) => v.service }.map { case (service, vertexGroup) =>
@@ -1130,4 +1133,12 @@ class Graph(_config: Config)(implicit val ec: ExecutionContext) {
     val innerVertices = Seq(Vertex.toVertex(serviceName, columnName, id, props.toMap, ts, operation))
     mutateVertices(innerVertices, withWait).map(_.headOption.getOrElse(false))
   }
+//  import org.apache.s2graph.core.tinkerpop.structure.S2Vertex
+//  def addVertex(s2Vertex: S2Vertex, withWait: Boolean = true): Future[Boolean] = {
+//    val innerVertices = Seq(Vertex.fromS2Vertex(s2Vertex))
+//    mutateVertices(innerVertices, withWait).map { rets =>
+//      if (rets.forall(identity)) s2Vertex
+//      else throw new RuntimeException("add Vertex failed.")
+//    }
+//  }
 }

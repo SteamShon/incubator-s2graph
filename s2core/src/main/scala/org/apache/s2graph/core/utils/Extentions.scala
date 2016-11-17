@@ -19,10 +19,13 @@
 
 package org.apache.s2graph.core.utils
 
+import java.util.concurrent.CompletableFuture
+
 import com.stumbleupon.async.{Callback, Deferred}
 import com.typesafe.config.Config
 
 import scala.concurrent.{ExecutionContext, Future, Promise}
+import scala.util.{Success, Failure}
 
 object Extensions {
 
@@ -118,4 +121,13 @@ object Extensions {
     def getBooleanWithFallback(key: String, defaultValue: Boolean): Boolean =
       if (config.hasPath(key)) config.getBoolean(key) else defaultValue
   }
+//
+//  def mapToCompletableFuture[T, U](future: Future[T], op: T => U): CompletableFuture[U] = {
+//    val cf = new CompletableFuture[U]()
+//    future.onComplete {
+//      case Success(v) => cf.complete(op(v))
+//      case Failure(ex) => cf.completeExceptionally(ex)
+//    }
+//    cf
+//  }
 }

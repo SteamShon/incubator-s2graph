@@ -1,7 +1,10 @@
 package org.apache.s2graph.core.tinkerpop.structure;
 
+import org.apache.commons.math3.util.Pair;
 import org.apache.s2graph.core.mysqls.ColumnMeta;
 import org.apache.tinkerpop.gremlin.structure.*;
+import org.apache.tinkerpop.gremlin.structure.util.ElementHelper;
+
 import java.util.*;
 
 public class S2Vertex implements Vertex {
@@ -11,12 +14,40 @@ public class S2Vertex implements Vertex {
     private long ts;
     private String operation;
 
-    public S2Vertex(S2Graph graph, S2VertexId vertexId) {
+    public S2Vertex(S2Graph graph, Object... keyValues) {
+        if (keyValues.length < 6) throw new RuntimeException("not enough parameter for S2VertexId.");
+        Pair<S2VertexId, Map<String, Object>> pair = S2VertexIdUtil.toS2VertexParam(keyValues);
+        this.graph = graph;
+        this.vertexId = pair.getFirst();
+        this.props = new HashMap<>();
+        this.ts = System.currentTimeMillis();
+        this.operation = "insert";
+        for (Map.Entry<String, Object> e : pair.getSecond().entrySet()) {
+            property(e.getKey(), e.getValue());
+        }
+    }
+
+    public S2Vertex(S2Graph graph, S2VertexId vertexId, Map<String, Object> keyValues) {
         this.graph = graph;
         this.vertexId = vertexId;
         this.props = new HashMap<>();
         this.ts = System.currentTimeMillis();
         this.operation = "insert";
+        for (Map.Entry<String, Object> e : keyValues.entrySet()) {
+            property(e.getKey(), e.getValue());
+        }
+    }
+
+    public S2Vertex(S2Graph graph, S2VertexId vertexId, Object... keyValues) {
+        this.graph = graph;
+        this.vertexId = vertexId;
+        this.props = new HashMap<>();
+        this.ts = System.currentTimeMillis();
+        this.operation = "insert";
+        final Map<String, Object> kvs = ElementHelper.asMap(keyValues);
+        for (Map.Entry<String, Object> e : kvs.entrySet()) {
+            property(e.getKey(), e.getValue());
+        }
     }
 
     // TODO: Need to add more constructor for handling property and ts and operaiton.
@@ -33,6 +64,7 @@ public class S2Vertex implements Vertex {
     }
     @Override
     public Edge addEdge(String s, Vertex vertex, Object... objects) {
+
         return null;
     }
     public Iterator<Edge> edgesAsync(Direction direction, String... edgeLabels) {
