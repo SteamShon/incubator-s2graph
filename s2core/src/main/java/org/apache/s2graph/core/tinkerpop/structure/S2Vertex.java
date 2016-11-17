@@ -1,6 +1,7 @@
 package org.apache.s2graph.core.tinkerpop.structure;
 
 import org.apache.commons.math3.util.Pair;
+import org.apache.s2graph.core.GraphUtil;
 import org.apache.s2graph.core.mysqls.ColumnMeta;
 import org.apache.tinkerpop.gremlin.structure.*;
 import org.apache.tinkerpop.gremlin.structure.util.ElementHelper;
@@ -16,7 +17,7 @@ public class S2Vertex implements Vertex {
 
     public S2Vertex(S2Graph graph, Object... keyValues) {
         if (keyValues.length < 6) throw new RuntimeException("not enough parameter for S2VertexId.");
-        Pair<S2VertexId, Map<String, Object>> pair = S2VertexIdUtil.toS2VertexParam(keyValues);
+        Pair<S2VertexId, Map<String, Object>> pair = S2GraphUtil.toS2VertexParam(keyValues);
 
         this.graph = graph;
         this.vertexId = pair.getFirst();
@@ -64,13 +65,15 @@ public class S2Vertex implements Vertex {
         }
     }
     @Override
-    public Edge addEdge(String s, Vertex vertex, Object... objects) {
+    public Edge addEdge(String label, Vertex outV, Object... objects) {
+        S2Vertex s2OutV = (S2Vertex) outV;
+        Map<String, Object> props = ElementHelper.asMap(objects);
+        String direction = (String) props.getOrDefault("direction", "out");
+        Long ts = (Long) props.getOrDefault("timestamp", System.currentTimeMillis());
+        String operation = (String) props.getOrDefault("operation", GraphUtil.defaultOp());
+        return new S2Edge(graph, this, s2OutV, label, direction, props, ts, operation);
+    }
 
-        return null;
-    }
-    public Iterator<Edge> edgesAsync(Direction direction, String... edgeLabels) {
-        return null;
-    }
     @Override
     public Iterator<Edge> edges(Direction direction, String... strings) {
         return null;

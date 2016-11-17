@@ -6,7 +6,7 @@ import org.apache.s2graph.core.mysqls.ServiceColumn;
 import org.apache.tinkerpop.gremlin.structure.util.ElementHelper;
 import java.util.Map;
 
-public class S2VertexIdUtil {
+public class S2GraphUtil {
     public static Pair<S2VertexId, Map<String, Object>> toS2VertexParam(Object... keyValues) {
         Map<String, Object> params = ElementHelper.asMap(keyValues);
 

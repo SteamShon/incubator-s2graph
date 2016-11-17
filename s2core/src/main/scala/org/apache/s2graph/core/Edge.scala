@@ -22,8 +22,10 @@ package org.apache.s2graph.core
 import org.apache.s2graph.core.GraphExceptions.LabelNotExistException
 import org.apache.s2graph.core.JSONParser._
 import org.apache.s2graph.core.mysqls.{Label, LabelIndex, LabelMeta}
+import org.apache.s2graph.core.tinkerpop.structure.S2Edge
 import org.apache.s2graph.core.types._
 import org.apache.s2graph.core.utils.logger
+import org.apache.tinkerpop.gremlin.structure.Property
 import play.api.libs.json.{JsNumber, JsObject, Json}
 import scala.util.hashing.MurmurHash3
 
@@ -660,7 +662,33 @@ object Edge {
     (propsWithTs, true)
   }
 
-//  def fromString(s: String): Option[Edge] = Graph.toEdge(s)
+  def fromS2Edge(s2Edge: S2Edge): Edge = {
+    val srcV = Vertex.fromS2Vertex(s2Edge.srcV())
+    val tgtV = Vertex.fromS2Vertex(s2Edge.tgtV())
+    val labelName = s2Edge.label()
+    val dir = GraphUtil.toDirection(s2Edge.direction())
+    val op = GraphUtil.toOp(s2Edge.operation()).getOrElse(GraphUtil.defaultOpByte)
+    val version = s2Edge.ts()
+    val props = s2Edge.getProps()
 
+    val label = Label.findByName(labelName).getOrElse(throw new RuntimeException("label is not found."))
+    val propsInner = toInnerProperties(label, props, s2Edge.ts())
+    new Edge(srcV, tgtV, label, dir, op, version, propsInner)
+  }
+
+  private def toInnerProperties(label: Label,
+                                 props: java.util.Map[String, Property[_]],
+                                 ts: Long = System.currentTimeMillis()): Map[LabelMeta, InnerValLikeWithTs] = {
+    import CanInnerValLike._
+    import scala.collection.JavaConversions._
+    val ret = for {
+      entry <- props.entrySet()
+      meta <- label.metaPropsInvMap.get(entry.getKey)
+    } yield {
+        val innerValLike = implicitly[CanInnerValLike[Any]].toInnerVal(entry.getValue.value.toString)
+        meta -> InnerValLikeWithTs(innerValLike, ts)
+      }
+    ret.toMap ++ Map(LabelMeta.timestamp -> InnerValLikeWithTs.withLong(ts, ts, label.schemaVersion))
+  }
 
 }

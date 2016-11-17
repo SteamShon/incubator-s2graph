@@ -36,7 +36,8 @@ object GraphUtil {
   }
   val BitsForMurMurHash = 16
   val bytesForMurMurHash = 2
-  val defaultOpByte = operations("insert")
+  val defaultOp = "insert"
+  val defaultOpByte = operations(defaultOp)
   val directions = Map("out" -> 0, "in" -> 1, "undirected" -> 2, "u" -> 2, "directed" -> 0, "d" -> 0)
   val consistencyLevel = Map("weak" -> 0, "strong" -> 1)
 
