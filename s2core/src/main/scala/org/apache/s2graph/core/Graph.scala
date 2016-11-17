@@ -852,7 +852,16 @@ class Graph(_config: Config)(implicit val ec: ExecutionContext) {
       throw FetchTimeoutException(s"${edge.toLogString}")
     }
   }
+  def getVertices(vertices: java.lang.Iterable[Vertex]): Future[Seq[Vertex]] = {
+    val verticesWithIdx = vertices.toSeq.zipWithIndex
+    val futures = verticesWithIdx.groupBy { case (v, idx) => v.service }.map { case (service, vertexGroup) =>
+      getStorage(service).getVertices(vertexGroup.map(_._1)).map(_.zip(vertexGroup.map(_._2)))
+    }
 
+    Future.sequence(futures).map { ls =>
+      ls.flatten.toSeq.sortBy(_._2).map(_._1)
+    }
+  }
   def getVertices(vertices: Seq[Vertex]): Future[Seq[Vertex]] = {
     val verticesWithIdx = vertices.zipWithIndex
     val futures = verticesWithIdx.groupBy { case (v, idx) => v.service }.map { case (service, vertexGroup) =>

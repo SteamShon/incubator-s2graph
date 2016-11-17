@@ -36,6 +36,9 @@ import scala.util.{Success, Try}
 object Query {
   val initialScore = 1.0
   lazy val empty = Query()
+  val DefaultQueryOption = QueryOption()
+  val DefaultJsonQuery = JsNull
+
   def apply(query: Query): Query = {
     Query(query.vertices, query.steps, query.queryOption, query.jsonQuery)
   }
@@ -97,7 +100,7 @@ case class QueryOption(removeCycle: Boolean = false,
 }
 
 case class Query(vertices: Seq[Vertex] = Seq.empty[Vertex],
-                 steps: IndexedSeq[Step] = Vector.empty[Step],
+                 steps: Seq[Step] = Seq.empty[Step],
                  queryOption: QueryOption = QueryOption(),
                  jsonQuery: JsValue = JsNull) {
 
@@ -198,6 +201,7 @@ case class EdgeTransformer(jsValue: JsValue) {
 
 object Step {
   val Delimiter = "|"
+  val DefaultLabelWeights = Map.empty[Int, Double]
 }
 
 case class Step(queryParams: Seq[QueryParam],

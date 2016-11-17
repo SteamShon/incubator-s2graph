@@ -1,12 +1,19 @@
 package org.apache.s2graph.core.tinkerpop.structure;
 
-import org.apache.commons.math3.util.Pair;
-import org.apache.s2graph.core.GraphUtil;
+
+import org.apache.s2graph.core.*;
 import org.apache.s2graph.core.mysqls.ColumnMeta;
 import org.apache.tinkerpop.gremlin.structure.*;
+import org.apache.tinkerpop.gremlin.structure.Edge;
+import org.apache.tinkerpop.gremlin.structure.Graph;
+import org.apache.tinkerpop.gremlin.structure.Vertex;
 import org.apache.tinkerpop.gremlin.structure.util.ElementHelper;
+import org.javatuples.Pair;
+import scala.collection.JavaConversions;
+import scala.concurrent.Await;
 
 import java.util.*;
+import java.util.stream.Collectors;
 
 public class S2Vertex implements Vertex {
     private S2Graph graph;
@@ -20,11 +27,11 @@ public class S2Vertex implements Vertex {
         Pair<S2VertexId, Map<String, Object>> pair = S2GraphUtil.toS2VertexParam(keyValues);
 
         this.graph = graph;
-        this.vertexId = pair.getFirst();
+        this.vertexId = pair.getValue0();
         this.props = new HashMap<>();
         this.ts = System.currentTimeMillis();
         this.operation = "insert";
-        for (Map.Entry<String, Object> e : pair.getSecond().entrySet()) {
+        for (Map.Entry<String, Object> e : pair.getValue1().entrySet()) {
             property(VertexProperty.Cardinality.single, e.getKey(), e.getValue());
         }
     }
@@ -59,11 +66,12 @@ public class S2Vertex implements Vertex {
         this.ts = vertex.ts();
         this.operation = vertex.operation();
         this.props = new HashMap<>();
-        for (Map.Entry<ColumnMeta, Object> e: scala.collection.JavaConversions.mapAsJavaMap(vertex.toProperties()).entrySet()) {
+        for (Map.Entry<ColumnMeta, Object> e : JavaConversions.mapAsJavaMap(vertex.toProperties()).entrySet()) {
             ColumnMeta meta = e.getKey();
             property(VertexProperty.Cardinality.single, meta.name(), e.getValue());
         }
     }
+
     @Override
     public Edge addEdge(String label, Vertex outV, Object... objects) {
         S2Vertex s2OutV = (S2Vertex) outV;
@@ -75,9 +83,77 @@ public class S2Vertex implements Vertex {
     }
 
     @Override
-    public Iterator<Edge> edges(Direction direction, String... strings) {
-        return null;
+    public Iterator<Edge> edges(Direction direction, String... labels) {
+        List<Edge> results = new ArrayList<>();
+        List<org.apache.s2graph.core.Vertex> vertices = new ArrayList<>();
+        List<org.apache.s2graph.core.Step> steps = new ArrayList<>();
+        List<org.apache.s2graph.core.QueryParam> queryParams = new ArrayList<>();
+
+        // step 1. set up start vertices.
+        vertices.add(org.apache.s2graph.core.Vertex.fromS2Vertex(this));
+
+        // step 2. build QueryParam for this step.
+        for (int i = 0; i < labels.length; i++) {
+            String labelName = labels[i];
+            QueryParam queryParam = new QueryParam(
+                    labelName,
+                    QueryParam$.MODULE$.apply$default$2(),
+                    QueryParam$.MODULE$.apply$default$3(),
+                    QueryParam$.MODULE$.apply$default$4(),
+                    QueryParam$.MODULE$.apply$default$5(),
+                    QueryParam$.MODULE$.apply$default$6(),
+                    QueryParam$.MODULE$.apply$default$7(),
+                    QueryParam$.MODULE$.apply$default$8(),
+                    QueryParam$.MODULE$.apply$default$9(),
+                    QueryParam$.MODULE$.apply$default$10(),
+                    QueryParam$.MODULE$.apply$default$11(),
+                    QueryParam$.MODULE$.apply$default$12(),
+                    QueryParam$.MODULE$.apply$default$13(),
+                    QueryParam$.MODULE$.apply$default$14(),
+                    QueryParam$.MODULE$.apply$default$15(),
+                    QueryParam$.MODULE$.apply$default$16(),
+                    QueryParam$.MODULE$.apply$default$17(),
+                    QueryParam$.MODULE$.apply$default$18(),
+                    QueryParam$.MODULE$.apply$default$19(),
+                    QueryParam$.MODULE$.apply$default$20(),
+                    QueryParam$.MODULE$.apply$default$21(),
+                    QueryParam$.MODULE$.apply$default$22(),
+                    QueryParam$.MODULE$.apply$default$23(),
+                    QueryParam$.MODULE$.apply$default$24(),
+                    QueryParam$.MODULE$.apply$default$25(),
+                    QueryParam$.MODULE$.apply$default$26(),
+                    QueryParam$.MODULE$.apply$default$27(),
+                    QueryParam$.MODULE$.apply$default$28());
+            queryParams.add(queryParam);
+        }
+
+        // 3. set up current step.
+        steps.add(new Step(JavaConversions.asScalaBuffer(queryParams),
+                Step$.MODULE$.apply$default$2(),
+                Step$.MODULE$.apply$default$3(),
+                Step$.MODULE$.apply$default$4(),
+                Step$.MODULE$.apply$default$5(),
+                Step$.MODULE$.apply$default$6()
+        ));
+
+        // 4. build Query.
+        Query query = new Query(JavaConversions.asScalaBuffer(vertices),
+                JavaConversions.asScalaBuffer(steps),
+                Query.DefaultQueryOption(),
+                Query.DefaultJsonQuery());
+
+        try {
+            final StepResult stepResult = Await.result(graph.getG().getEdges(query), S2Graph.timeout);
+            results.addAll(JavaConversions.seqAsJavaList(stepResult.edgeWithScores())
+                    .stream().map(edgeWithScore -> new S2Edge(graph, edgeWithScore.edge()))
+                    .collect(Collectors.toList()));
+            return results.iterator();
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+        return results.iterator();
     }
+
     @Override
     public Iterator<Vertex> vertices(Direction direction, String... edgeLabels) {
         List<Vertex> vertices = new ArrayList<>();
@@ -95,7 +171,6 @@ public class S2Vertex implements Vertex {
         }
         return vertices.iterator();
     }
-
 
 
     @Override
@@ -178,7 +253,11 @@ public class S2Vertex implements Vertex {
     @Override
     public String toString() {
         return "S2Vertex{" +
-                "vertexId=" + vertexId +
+                "graph=" + graph +
+                ", vertexId=" + vertexId +
+                ", props=" + props +
+                ", ts=" + ts +
+                ", operation='" + operation + '\'' +
                 '}';
     }
 
@@ -188,13 +267,7 @@ public class S2Vertex implements Vertex {
         if (o == null || getClass() != o.getClass()) return false;
 
         S2Vertex s2Vertex = (S2Vertex) o;
-
-        if (ts != s2Vertex.ts) return false;
-        if (!graph.equals(s2Vertex.graph)) return false;
-        if (!vertexId.equals(s2Vertex.vertexId)) return false;
-        if (!props.equals(s2Vertex.props)) return false;
-        return operation.equals(s2Vertex.operation);
-
+        return ElementHelper.areEqual(this, s2Vertex);
     }
 
     @Override

@@ -1,8 +1,6 @@
 package org.apache.s2graph.core.tinkerpop.structure;
 
 import org.apache.s2graph.core.GraphUtil;
-import org.apache.s2graph.core.mysqls.LabelMeta;
-import org.apache.s2graph.core.types.InnerValLikeWithTs;
 import org.apache.tinkerpop.gremlin.structure.*;
 
 import java.util.HashMap;
@@ -20,6 +18,12 @@ public class S2Edge implements Edge {
     private Long ts;
     private String operation;
 
+    public S2Edge(S2Graph graph, org.apache.s2graph.core.Edge edge) {
+        this(graph,
+                new S2Vertex(graph, edge.srcVertex()),
+                new S2Vertex(graph, edge.tgtVertex()),
+                edge.labelName());
+    }
 
     public S2Edge(S2Graph graph,
                   S2Vertex srcV,
@@ -34,6 +38,7 @@ public class S2Edge implements Edge {
         this.operation = GraphUtil.defaultOp();
         this.props = new HashMap<>();
     }
+
     public S2Edge(S2Graph graph,
                   S2Vertex srcV,
                   S2Vertex tgtV,
@@ -51,7 +56,7 @@ public class S2Edge implements Edge {
         this.operation = operation;
         this.props = new HashMap<>();
 
-        for (Map.Entry<String, Object> e: props.entrySet()) {
+        for (Map.Entry<String, Object> e : props.entrySet()) {
             property(e.getKey(), e.getValue());
         }
     }

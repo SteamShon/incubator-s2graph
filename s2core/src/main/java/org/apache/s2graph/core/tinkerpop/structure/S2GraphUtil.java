@@ -1,9 +1,10 @@
 package org.apache.s2graph.core.tinkerpop.structure;
 
-import org.apache.commons.math3.util.Pair;
 import org.apache.s2graph.core.mysqls.Service;
 import org.apache.s2graph.core.mysqls.ServiceColumn;
 import org.apache.tinkerpop.gremlin.structure.util.ElementHelper;
+import org.javatuples.Pair;
+
 import java.util.Map;
 
 public class S2GraphUtil {

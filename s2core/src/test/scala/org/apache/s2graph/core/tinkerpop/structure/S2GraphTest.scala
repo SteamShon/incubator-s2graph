@@ -17,6 +17,14 @@ class S2GraphTest extends FunSuite with Matchers with IntegrateTinkerpopCommon {
 
 
     val srcV = g.addVertex("service", testService, "column", testColumn, "id", Int.box(10))
+    val iter = g.vertices("service", testService, "column", testColumn, "id", Int.box(10))
+
+    iter.hasNext should be(true)
+    val actualSrcV = iter.next()
+    actualSrcV should be(srcV)
+
+    logger.error(s"[Fetched]: ${actualSrcV}")
+
     val tgtV = g.addVertex("service", testService, "column", testColumn, "id", Int.box(20))
     val edge = srcV.addEdge(testLabelName, tgtV)
     logger.error(s"$edge")
