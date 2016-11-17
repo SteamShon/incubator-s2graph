@@ -267,7 +267,13 @@ public class S2Vertex implements Vertex {
         if (o == null || getClass() != o.getClass()) return false;
 
         S2Vertex s2Vertex = (S2Vertex) o;
-        return ElementHelper.areEqual(this, s2Vertex);
+        if (props.size() != s2Vertex.getProps().size()) return false;
+        if (ts != s2Vertex.getTs()) return false;
+        if (operation != s2Vertex.getOperation()) return false;
+        for (Map.Entry<String, VertexProperty<?>> e : props.entrySet()) {
+            if (!ElementHelper.areEqual(e.getValue(), s2Vertex.property(e.getKey()))) return false;
+        }
+        return true;
     }
 
     @Override
