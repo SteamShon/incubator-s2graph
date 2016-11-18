@@ -8,7 +8,6 @@ import org.apache.s2graph.core.types.InnerValLikeWithTs;
 import org.apache.tinkerpop.gremlin.structure.*;
 import org.apache.tinkerpop.gremlin.structure.util.ElementHelper;
 import scala.collection.JavaConversions;
-import scalikejdbc.AutoSession;
 import scalikejdbc.AutoSession$;
 
 import java.util.HashMap;
@@ -88,12 +87,10 @@ public class S2Edge implements Edge {
             labelMetas.put(e.getKey(), e.getValue());
         }
 
-        for (Map.Entry<String, Object> e : props.entrySet()) {
-            if (labelMetas.containsKey(e.getKey())) {
-                LabelMeta meta = labelMetas.get(e.getKey());
-                property(e.getKey(), JSONParser.toInnerVal(e.getValue(), meta.dataType(), this.innerLabel.schemaVersion()));
-            }
-        }
+        props.entrySet().stream().filter(e -> labelMetas.containsKey(e.getKey())).forEach(e -> {
+            LabelMeta meta = labelMetas.get(e.getKey());
+            property(e.getKey(), JSONParser.toInnerVal(e.getValue(), meta.dataType(), this.innerLabel.schemaVersion()));
+        });
     }
 
     @Override
@@ -118,9 +115,8 @@ public class S2Edge implements Edge {
 
     @Override
     public <V> Property<V> property(String key) {
-        if (props.containsKey(key)) {
-            return (Property<V>) props.get(key);
-        } else {
+        if (props.containsKey(key)) return (Property<V>) props.get(key);
+        else {
             return Property.empty();
         }
     }
