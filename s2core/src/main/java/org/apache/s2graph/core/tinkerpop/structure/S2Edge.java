@@ -1,11 +1,15 @@
 package org.apache.s2graph.core.tinkerpop.structure;
 
 import org.apache.s2graph.core.GraphUtil;
+import org.apache.s2graph.core.JSONParser;
+import org.apache.s2graph.core.mysqls.Label;
 import org.apache.s2graph.core.mysqls.LabelMeta;
 import org.apache.s2graph.core.types.InnerValLikeWithTs;
 import org.apache.tinkerpop.gremlin.structure.*;
 import org.apache.tinkerpop.gremlin.structure.util.ElementHelper;
 import scala.collection.JavaConversions;
+import scalikejdbc.AutoSession;
+import scalikejdbc.AutoSession$;
 
 import java.util.HashMap;
 import java.util.Iterator;
@@ -21,6 +25,8 @@ public class S2Edge implements Edge {
     private Map<String, Property<?>> props;
     private Long ts;
     private String operation;
+    private Label innerLabel;
+    private Map<String, LabelMeta> labelMetas;
 
     public S2Edge(S2Graph graph, org.apache.s2graph.core.Edge edge) {
         this(graph,
@@ -28,11 +34,15 @@ public class S2Edge implements Edge {
                 new S2Vertex(graph, edge.tgtForVertex()),
                 edge.labelName());
 
+        this.innerLabel = Label.findByName(this.label, true, AutoSession$.MODULE$).get();
         this.direction = edge.direction();
         this.ts = edge.ts();
         this.operation = edge.operation();
         for (Map.Entry<LabelMeta, InnerValLikeWithTs> e : JavaConversions.mapAsJavaMap(edge.propsWithTs()).entrySet()) {
-            property(e.getKey().name(), e.getValue().innerVal().value());
+            property(e.getKey().name(), JSONParser.innerValToAny(e.getValue().innerVal(), e.getKey().dataType()));
+        }
+        for (Map.Entry<String, LabelMeta> e : JavaConversions.mapAsJavaMap(edge.label().metaPropsInvMap()).entrySet()) {
+            labelMetas.put(e.getKey(), e.getValue());
         }
     }
 
@@ -48,6 +58,11 @@ public class S2Edge implements Edge {
         this.ts = System.currentTimeMillis();
         this.operation = GraphUtil.defaultOp();
         this.props = new HashMap<>();
+        this.labelMetas = new HashMap<>();
+        this.innerLabel = Label.findByName(this.label, true, AutoSession$.MODULE$).get();
+        for (Map.Entry<String, LabelMeta> e: JavaConversions.mapAsJavaMap(this.innerLabel.metaPropsInvMap()).entrySet()) {
+            labelMetas.put(e.getKey(), e.getValue());
+        }
     }
 
     public S2Edge(S2Graph graph,
@@ -66,9 +81,18 @@ public class S2Edge implements Edge {
         this.ts = ts;
         this.operation = operation;
         this.props = new HashMap<>();
+        this.labelMetas = new HashMap<>();
+
+        this.innerLabel = Label.findByName(this.label, true, AutoSession$.MODULE$).get();
+        for (Map.Entry<String, LabelMeta> e: JavaConversions.mapAsJavaMap(this.innerLabel.metaPropsInvMap()).entrySet()) {
+            labelMetas.put(e.getKey(), e.getValue());
+        }
 
         for (Map.Entry<String, Object> e : props.entrySet()) {
-            property(e.getKey(), e.getValue());
+            if (labelMetas.containsKey(e.getKey())) {
+                LabelMeta meta = labelMetas.get(e.getKey());
+                property(e.getKey(), JSONParser.toInnerVal(e.getValue(), meta.dataType(), this.innerLabel.schemaVersion()));
+            }
         }
     }
 

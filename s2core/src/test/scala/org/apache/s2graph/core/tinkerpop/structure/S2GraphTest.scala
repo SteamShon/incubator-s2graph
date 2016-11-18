@@ -2,7 +2,7 @@ package org.apache.s2graph.core.tinkerpop.structure
 
 import org.apache.s2graph.core.mysqls.{ServiceColumn, Service}
 import org.apache.s2graph.core.utils.logger
-import org.apache.tinkerpop.gremlin.structure.Direction
+import org.apache.tinkerpop.gremlin.structure.{Property, Direction}
 import org.apache.tinkerpop.gremlin.structure.util.ElementHelper
 import org.scalatest._
 
@@ -36,7 +36,10 @@ class S2GraphTest extends FunSuite with Matchers with IntegrateTinkerpopCommon {
     val actualEdge = edges.get(0)
     edges.size() should be(1)
     actualEdge should be(edge)
-    val time = actualEdge.property[BigDecimal]("time").value()
-    time should be(BigDecimal.apply(100))
+    val time = actualEdge.property[Long]("time").value()
+    time should be(100L)
+
+//    val notExist = actualEdge.property[Long]("not-exist").value()
+//    notExist should be(Property.empty[Long]())
   }
 }
