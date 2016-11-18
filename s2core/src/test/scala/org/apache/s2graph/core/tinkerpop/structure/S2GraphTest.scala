@@ -18,14 +18,14 @@ class S2GraphTest extends FunSuite with Matchers with IntegrateTinkerpopCommon {
     testColumn = ServiceColumn.find(testService.id.get, testColumnName, useCache = false).getOrElse(throw new RuntimeException("column is not found."))
   }
 
-//  test("addVertex") {
-//    val srcV = g.addVertex("service", testService, "column", testColumn, "id", Int.box(10))
-//    val iter = g.vertices("service", testService, "column", testColumn, "id", Int.box(10))
-//
-//    iter.hasNext should be(true)
-//    val actualSrcV = iter.next()
-//    actualSrcV should be(srcV)
-//  }
+  test("addVertex") {
+    val srcV = g.addVertex("service", testService, "column", testColumn, "id", Int.box(10))
+    val iter = g.vertices("service", testService, "column", testColumn, "id", Int.box(10))
+
+    iter.hasNext should be(true)
+    val actualSrcV = iter.next()
+    actualSrcV should be(srcV)
+  }
 
   test("addEdge") {
     val srcV = g.addVertex("service", testService, "column", testColumn, "id", Int.box(10))
