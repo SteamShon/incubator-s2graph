@@ -59,7 +59,7 @@ case class SnapshotEdge(srcVertex: Vertex,
 
   def propsWithName = (for {
     (meta, v) <- props
-    jsValue <- innerValToJsValue(v.innerVal, meta.dataType)
+    jsValue <- anyValToJsValue(v.innerVal.value)
   } yield meta.name -> jsValue) ++ Map("version" -> JsNumber(version))
 
   // only for debug
@@ -131,7 +131,7 @@ case class IndexEdge(srcVertex: Vertex,
 
   def propsWithName = for {
     (meta, v) <- props if meta.seq >= 0
-    jsValue <- innerValToJsValue(v.innerVal, meta.dataType)
+    jsValue <- anyValToJsValue(v.innerVal.value)
   } yield meta.name -> jsValue
 
 
@@ -176,6 +176,7 @@ case class Edge(srcVertex: Vertex,
   lazy val tgtId = tgtVertex.innerIdVal
   lazy val labelName = label.label
   lazy val direction = GraphUtil.fromDirection(dir)
+  lazy val operation = GraphUtil.fromOp(op)
   lazy val properties = toProps()
 
   def props = propsWithTs.mapValues(_.innerVal)
@@ -285,7 +286,7 @@ case class Edge(srcVertex: Vertex,
   def propsWithName =
     for {
       (meta, v) <- props if meta.seq > 0
-      jsValue <- innerValToJsValue(v, meta.dataType)
+      jsValue <- anyValToJsValue(v.value)
     } yield meta.name -> jsValue
 
 
@@ -674,6 +675,9 @@ object Edge {
     val label = Label.findByName(labelName).getOrElse(throw new RuntimeException("label is not found."))
     val propsInner = toInnerProperties(label, props, s2Edge.ts())
     new Edge(srcV, tgtV, label, dir, op, version, propsInner)
+//    val innerEdge = new Edge(srcV, tgtV, label, dir, op, version, propsInner)
+//    logger.error(s"[InnerEdge]: ${innerEdge.toLogString}")
+//    innerEdge
   }
 
   private def toInnerProperties(label: Label,
@@ -685,7 +689,7 @@ object Edge {
       entry <- props.entrySet()
       meta <- label.metaPropsInvMap.get(entry.getKey)
     } yield {
-        val innerValLike = implicitly[CanInnerValLike[Any]].toInnerVal(entry.getValue.value.toString)
+        val innerValLike = implicitly[CanInnerValLike[Any]].toInnerVal(entry.getValue.value)
         meta -> InnerValLikeWithTs(innerValLike, ts)
       }
     ret.toMap ++ Map(LabelMeta.timestamp -> InnerValLikeWithTs.withLong(ts, ts, label.schemaVersion))

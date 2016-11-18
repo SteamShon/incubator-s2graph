@@ -76,7 +76,7 @@ object JSONParser {
       Some(jsValue)
     } catch {
       case e: Exception =>
-        logger.info(s"JSONParser.innerValToJsValue: $e")
+        logger.error(s"JSONParser.innerValToJsValue: ${innerVal.value.getClass.getCanonicalName}, $dataType", e)
         None
     }
   }

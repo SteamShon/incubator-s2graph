@@ -1,10 +1,12 @@
 package org.apache.s2graph.core.tinkerpop.structure;
 
 import org.apache.s2graph.core.GraphUtil;
+import org.apache.s2graph.core.mysqls.LabelMeta;
+import org.apache.s2graph.core.types.InnerValLikeWithTs;
 import org.apache.tinkerpop.gremlin.structure.*;
 import org.apache.tinkerpop.gremlin.structure.util.ElementHelper;
+import scala.collection.JavaConversions;
 
-import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map;
@@ -25,6 +27,13 @@ public class S2Edge implements Edge {
                 new S2Vertex(graph, edge.srcForVertex()),
                 new S2Vertex(graph, edge.tgtForVertex()),
                 edge.labelName());
+
+        this.direction = edge.direction();
+        this.ts = edge.ts();
+        this.operation = edge.operation();
+        for (Map.Entry<LabelMeta, InnerValLikeWithTs> e : JavaConversions.mapAsJavaMap(edge.propsWithTs()).entrySet()) {
+            property(e.getKey().name(), e.getValue().innerVal().value());
+        }
     }
 
     public S2Edge(S2Graph graph,
@@ -84,8 +93,17 @@ public class S2Edge implements Edge {
     }
 
     @Override
+    public <V> Property<V> property(String key) {
+        if (props.containsKey(key)) {
+            return (Property<V>) props.get(key);
+        } else {
+            return Property.empty();
+        }
+    }
+
+    @Override
     public <V> Property<V> property(String key, V value) {
-        Property<V> newProperty = new S2Property<V>(this, key, value);
+        Property<V> newProperty = new S2Property<>(this, key, value);
         props.put(key, newProperty);
         return newProperty;
     }
