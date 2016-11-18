@@ -17,46 +17,27 @@
  * under the License.
  */
 
-package org.apache.s2graph.core.tinkerpop.structure;
+package org.apache.s2graph.core.tinkerpop.io;
 
-import org.apache.tinkerpop.gremlin.structure.Element;
-import org.apache.tinkerpop.gremlin.structure.Property;
+import java.util.ArrayList;
+import java.util.List;
+import org.apache.hadoop.io.ArrayWritable;
+import org.apache.hadoop.io.Writable;
 
-public class S2Property<V> implements Property<V> {
-    private Element element;
-    private String key;
-    private V value;
-
-    public S2Property(Element element, String key, V value) {
-        this.element = element;
-        this.key = key;
-        this.value = value;
+public class S2EdgesWritable extends ArrayWritable {
+    public S2EdgesWritable() {
+        super(S2EdgeWritable.class);
     }
 
-    @Override
-    public V value() {
-        return value;
+    public S2EdgesWritable(List<S2EdgeWritable> list) {
+        super(S2EdgeWritable.class, list.toArray(new S2EdgeWritable[0]));
     }
 
-    @Override
-    public String key() {
-        return key;
+    public List<S2EdgeWritable> getEdges() {
+        List<S2EdgeWritable> list = new ArrayList<>();
+        for(Writable w : get()){
+            list.add((S2EdgeWritable) w);
+        }
+        return list;
     }
-
-    @Override
-    public boolean isPresent() {
-        return true;
-    }
-
-    @Override
-    public Element element() {
-        return element;
-    }
-
-    @Override
-    public void remove() {
-
-    }
-
-
 }
