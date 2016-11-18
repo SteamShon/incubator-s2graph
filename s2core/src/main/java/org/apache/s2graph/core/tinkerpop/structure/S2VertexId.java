@@ -79,18 +79,17 @@ public class S2VertexId {
         if (o == null || getClass() != o.getClass()) return false;
 
         S2VertexId that = (S2VertexId) o;
-
-        if (!id.equals(that.id)) return false;
-        if (!serviceName.equals(that.serviceName)) return false;
-        return columnName.equals(that.columnName);
-
+        if (!service.equals(that.service)) return false;
+        if (!column.equals(that.column)) return false;
+        //TODO: Check this is valid.
+        return id.toString().equals(that.id.toString());
     }
 
     @Override
     public int hashCode() {
         int result = id.hashCode();
-        result = 31 * result + serviceName.hashCode();
-        result = 31 * result + columnName.hashCode();
+        result = 31 * result + service.hashCode();
+        result = 31 * result + column.hashCode();
         return result;
     }
 }

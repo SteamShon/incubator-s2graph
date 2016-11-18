@@ -2,7 +2,9 @@ package org.apache.s2graph.core.tinkerpop.structure;
 
 import org.apache.s2graph.core.GraphUtil;
 import org.apache.tinkerpop.gremlin.structure.*;
+import org.apache.tinkerpop.gremlin.structure.util.ElementHelper;
 
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map;
@@ -20,8 +22,8 @@ public class S2Edge implements Edge {
 
     public S2Edge(S2Graph graph, org.apache.s2graph.core.Edge edge) {
         this(graph,
-                new S2Vertex(graph, edge.srcVertex()),
-                new S2Vertex(graph, edge.tgtVertex()),
+                new S2Vertex(graph, edge.srcForVertex()),
+                new S2Vertex(graph, edge.tgtForVertex()),
                 edge.labelName());
     }
 
@@ -68,7 +70,7 @@ public class S2Edge implements Edge {
 
     @Override
     public Object id() {
-        return null;
+        return srcV.getVertexId() + "|" + tgtV.getVertexId() + "|" + label() + "|" + direction();
     }
 
     @Override
@@ -134,5 +136,32 @@ public class S2Edge implements Edge {
                 ", ts=" + ts +
                 ", operation='" + operation + '\'' +
                 '}';
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+
+        S2Edge s2Edge = (S2Edge) o;
+
+        if (!graph.equals(s2Edge.graph)) return false;
+        if (!srcV.equals(s2Edge.srcV)) return false;
+        if (!tgtV.equals(s2Edge.tgtV)) return false;
+        if (!label.equals(s2Edge.label)) return false;
+        if (!direction.equals(s2Edge.direction)) return false;
+
+        return ElementHelper.areEqual(this, s2Edge);
+    }
+
+    @Override
+    public int hashCode() {
+        int result = graph.hashCode();
+        result = 31 * result + srcV.hashCode();
+        result = 31 * result + tgtV.hashCode();
+        result = 31 * result + label.hashCode();
+        result = 31 * result + direction.hashCode();
+        result = 31 * result + ts.hashCode();
+        return result;
     }
 }

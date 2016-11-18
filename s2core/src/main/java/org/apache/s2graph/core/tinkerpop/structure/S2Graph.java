@@ -23,7 +23,7 @@ public class S2Graph implements Graph {
     private ExecutionContext ec;
     private org.apache.s2graph.core.Graph g;
 
-    public static Duration timeout = Duration.apply(10, TimeUnit.SECONDS);
+    public static Duration timeout = Duration.apply(60, TimeUnit.SECONDS);
 
     public S2Graph(Configuration configuration, ExecutionContext ec) {
         this.configuration = configuration;

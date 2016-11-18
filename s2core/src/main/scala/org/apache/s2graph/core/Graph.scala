@@ -1030,6 +1030,9 @@ class Graph(_config: Config)(implicit val ec: ExecutionContext) {
   }
 
   //  def mutateEdges(edges: Seq[Edge], withWait: Boolean = false): Future[Seq[Boolean]] = storage.mutateEdges(edges, withWait)
+  def mutateEdge(edge: Edge, withWait: Boolean = false): Future[Boolean] = {
+    mutateEdges(Seq(edge), withWait).map(rets => rets.headOption.getOrElse(false))
+  }
 
   def mutateEdges(edges: Seq[Edge], withWait: Boolean = false): Future[Seq[Boolean]] = {
     val edgeWithIdxs = edges.zipWithIndex
@@ -1142,12 +1145,4 @@ class Graph(_config: Config)(implicit val ec: ExecutionContext) {
     val innerVertices = Seq(Vertex.toVertex(serviceName, columnName, id, props.toMap, ts, operation))
     mutateVertices(innerVertices, withWait).map(_.headOption.getOrElse(false))
   }
-//  import org.apache.s2graph.core.tinkerpop.structure.S2Vertex
-//  def addVertex(s2Vertex: S2Vertex, withWait: Boolean = true): Future[Boolean] = {
-//    val innerVertices = Seq(Vertex.fromS2Vertex(s2Vertex))
-//    mutateVertices(innerVertices, withWait).map { rets =>
-//      if (rets.forall(identity)) s2Vertex
-//      else throw new RuntimeException("add Vertex failed.")
-//    }
-//  }
 }

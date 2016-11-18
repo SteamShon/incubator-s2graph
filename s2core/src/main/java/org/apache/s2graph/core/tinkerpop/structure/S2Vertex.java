@@ -79,7 +79,16 @@ public class S2Vertex implements Vertex {
         String direction = (String) props.getOrDefault("direction", "out");
         Long ts = (Long) props.getOrDefault("timestamp", System.currentTimeMillis());
         String operation = (String) props.getOrDefault("operation", GraphUtil.defaultOp());
-        return new S2Edge(graph, this, s2OutV, label, direction, props, ts, operation);
+        S2Edge s2Edge = new S2Edge(graph, this, s2OutV, label, direction, props, ts, operation);
+        try {
+            org.apache.s2graph.core.Edge innerE = org.apache.s2graph.core.Edge.fromS2Edge(s2Edge);
+            boolean success = (boolean) Await.result(graph.getG().mutateEdge(innerE, true), S2Graph.timeout);
+            System.out.println("[AddEdge]: " + innerE + ", " + success);
+            return s2Edge;
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+        return null;
     }
 
     @Override
@@ -91,7 +100,7 @@ public class S2Vertex implements Vertex {
 
         // step 1. set up start vertices.
         vertices.add(org.apache.s2graph.core.Vertex.fromS2Vertex(this));
-
+        System.out.println("[SrcVertex]: " + Arrays.toString(vertices.toArray()));
         // step 2. build QueryParam for this step.
         for (int i = 0; i < labels.length; i++) {
             String labelName = labels[i];
@@ -142,11 +151,17 @@ public class S2Vertex implements Vertex {
                 Query.DefaultQueryOption(),
                 Query.DefaultJsonQuery());
 
+        System.out.println("[Query]: " + query);
+
         try {
             final StepResult stepResult = Await.result(graph.getG().getEdges(query), S2Graph.timeout);
-            results.addAll(JavaConversions.seqAsJavaList(stepResult.edgeWithScores())
-                    .stream().map(edgeWithScore -> new S2Edge(graph, edgeWithScore.edge()))
-                    .collect(Collectors.toList()));
+            final List<EdgeWithScore> edgeWithScores = JavaConversions.seqAsJavaList(stepResult.edgeWithScores());
+            System.out.println("[Result]: " + edgeWithScores.size());
+            for (EdgeWithScore es : edgeWithScores) {
+                S2Edge s2Edge = new S2Edge(graph, es.edge());
+                System.out.println("[S2Edge]: " + s2Edge);
+                results.add(s2Edge);
+            }
             return results.iterator();
         } catch (Exception e) {
             e.printStackTrace();
@@ -267,20 +282,13 @@ public class S2Vertex implements Vertex {
         if (o == null || getClass() != o.getClass()) return false;
 
         S2Vertex s2Vertex = (S2Vertex) o;
-        if (props.size() != s2Vertex.getProps().size()) return false;
-        if (ts != s2Vertex.getTs()) return false;
-        if (operation != s2Vertex.getOperation()) return false;
-        for (Map.Entry<String, VertexProperty<?>> e : props.entrySet()) {
-            if (!ElementHelper.areEqual(e.getValue(), s2Vertex.property(e.getKey()))) return false;
-        }
-        return true;
+        return vertexId.equals(s2Vertex.getVertexId());
     }
 
     @Override
     public int hashCode() {
         int result = graph.hashCode();
         result = 31 * result + vertexId.hashCode();
-        result = 31 * result + props.hashCode();
         result = 31 * result + (int) (ts ^ (ts >>> 32));
         result = 31 * result + operation.hashCode();
         return result;

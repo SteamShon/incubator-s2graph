@@ -25,10 +25,13 @@ package org.apache.s2graph.core.mysqls
 
 import org.apache.s2graph.core.JSONParser
 import org.apache.s2graph.core.JSONParser._
-import org.apache.s2graph.core.types.{InnerValLikeWithTs, InnerValLike}
+import org.apache.s2graph.core.types.{HBaseType, InnerValLikeWithTs, InnerValLike}
+import org.apache.s2graph.core.utils.logger
 import play.api.libs.json.Json
 import scalikejdbc._
 object ServiceColumn extends Model[ServiceColumn] {
+  import HBaseType._
+  val Default = ServiceColumn(Option(DEFAULT_COL_ID), DEFAULT_COL_ID, "default", "string", DEFAULT_VERSION)
 
   def apply(rs: WrappedResultSet): ServiceColumn = {
     ServiceColumn(rs.intOpt("id"), rs.int("service_id"), rs.string("column_name"), rs.string("column_type").toLowerCase(), rs.string("schema_version"))
@@ -37,7 +40,13 @@ object ServiceColumn extends Model[ServiceColumn] {
   def findById(id: Int)(implicit session: DBSession = AutoSession): ServiceColumn = {
 //    val cacheKey = s"id=$id"
     val cacheKey = "id=" + id
-    withCache(cacheKey)(sql"""select * from service_columns where id = ${id}""".map { x => ServiceColumn(x) }.single.apply).get
+    try {
+      withCache(cacheKey)( sql"""select * from service_columns where id = ${id}""".map { x => ServiceColumn(x) }.single.apply).get
+    } catch {
+      case e: Exception =>
+        logger.error(s"ServiceColumn.findById(${id})", e)
+        throw e
+    }
   }
   def find(serviceId: Int, columnName: String, useCache: Boolean = true)(implicit session: DBSession = AutoSession): Option[ServiceColumn] = {
 //    val cacheKey = s"serviceId=$serviceId:columnName=$columnName"
