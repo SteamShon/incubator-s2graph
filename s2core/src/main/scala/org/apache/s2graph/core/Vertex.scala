@@ -21,12 +21,8 @@ package org.apache.s2graph.core
 
 import org.apache.s2graph.core.JSONParser._
 import org.apache.s2graph.core.mysqls.{ColumnMeta, Service, ServiceColumn}
-import org.apache.s2graph.core.tinkerpop.structure.{S2Graph, S2Vertex, S2VertexId}
 import org.apache.s2graph.core.types._
-import org.apache.s2graph.core.utils.logger
-import org.apache.tinkerpop.gremlin.structure.VertexProperty
 import play.api.libs.json.Json
-
 import scala.collection.JavaConversions._
 
 case class Vertex(id: VertexId,
@@ -113,6 +109,9 @@ case class Vertex(id: VertexId,
 }
 
 object Vertex {
+  val DefaultbelongLabelIds = Seq.empty[Int]
+
+  val DefaultProps = Map.empty[Int, InnerValLike]
 
   def toPropKey(labelId: Int): Int = Byte.MaxValue + labelId
 
@@ -138,35 +137,15 @@ object Vertex {
     new Vertex(srcVertexId, ts, propsInner, op)
   }
 
-  def fromS2Vertex(s2Vertex: S2Vertex): Vertex = {
-    val s2VertexId = s2Vertex.getVertexId
-    val serviceName = s2VertexId.getServiceName
-    val columnName = s2VertexId.getColumnName
-    val operation = s2Vertex.getOperation
-    val props = s2Vertex.getProps
-    val ts = s2Vertex.getTs
-    val id = s2VertexId.getId
-
-    val service = Service.findByName(serviceName).getOrElse(throw new RuntimeException(s"$serviceName is not found."))
-    val column = ServiceColumn.find(service.id.get, columnName).getOrElse(throw new RuntimeException(s"$columnName is not found."))
-    val op = GraphUtil.toOp(operation).getOrElse(throw new RuntimeException(s"$operation is not supported."))
-    val innerVal = toInnerVal(id.toString, column.columnType, column.schemaVersion)
-
-    val srcVertexId = VertexId(column.id.get, innerVal)
-    val propsInner = toInnerProperties(column, props, ts)
-
-    new Vertex(srcVertexId, ts, propsInner, op)
-  }
-
-  private def toInnerProperties(serviceColumn: ServiceColumn,
-                                props: java.util.Map[String, VertexProperty[_]],
+  def toInnerProperties(serviceColumn: ServiceColumn,
+                                props: java.util.Map[String, Any],
                                 ts: Long = System.currentTimeMillis()): Map[Int, InnerValLike] = {
-    import CanInnerValLike._
     val ret = for {
       entry <- props.entrySet()
       meta <- serviceColumn.metasInvMap.get(entry.getKey)
     } yield {
-        val innerValLike = implicitly[CanInnerValLike[Any]].toInnerVal(entry.getValue.value.toString)
+        val innerValLike = JSONParser.toInnerVal(entry.getValue, meta.dataType, serviceColumn.schemaVersion)
+//        val innerValLike = implicitly[CanInnerValLike[Any]].toInnerVal(entry.getValue.toString)
         meta.seq.toInt -> innerValLike
       }
     ret.toMap ++ Map(ColumnMeta.timeStampSeq.toInt -> InnerVal.withLong(ts, serviceColumn.schemaVersion))

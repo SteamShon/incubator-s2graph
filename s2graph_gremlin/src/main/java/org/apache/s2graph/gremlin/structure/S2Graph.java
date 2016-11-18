@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.apache.s2graph.core.tinkerpop.structure;
+package org.apache.s2graph.gremlin.structure;
 
 import com.typesafe.config.Config;
 import com.typesafe.config.ConfigFactory;
@@ -31,6 +31,7 @@ import scala.collection.JavaConversions;
 import scala.concurrent.Await;
 import scala.concurrent.ExecutionContext;
 import scala.concurrent.duration.Duration;
+
 import java.util.*;
 import java.util.concurrent.TimeUnit;
 
@@ -73,7 +74,7 @@ public class S2Graph implements Graph {
         S2Vertex s2Vertex = new S2Vertex(this, keyValues);
 
         try {
-            org.apache.s2graph.core.Vertex innerV = org.apache.s2graph.core.Vertex.fromS2Vertex(s2Vertex);
+            org.apache.s2graph.core.Vertex innerV = s2Vertex.toInnerVertex();
 
             boolean success = (boolean) Await.result(g.mutateVertex(innerV, true), timeout);
             if (success) return s2Vertex;
@@ -95,8 +96,7 @@ public class S2Graph implements Graph {
             for (int j = 0; j < 6; j++) {
                 current.add(keyValues[i + j]);
             }
-            org.apache.s2graph.core.Vertex innerV =
-                    org.apache.s2graph.core.Vertex.fromS2Vertex(new S2Vertex(this, current.toArray()));
+            org.apache.s2graph.core.Vertex innerV = (new S2Vertex(this, current.toArray())).toInnerVertex();
             vs.add(innerV);
         }
         try {

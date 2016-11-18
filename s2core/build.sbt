@@ -44,7 +44,10 @@ libraryDependencies ++= Seq(
   "net.bytebuddy" % "byte-buddy" % "1.4.26",
   "org.scalatest" %% "scalatest" % "2.2.4" % "test",
   "org.specs2" %% "specs2-core" % specs2Version % "test",
-  "org.apache.tinkerpop" % "gremlin-core" % "3.2.3"
+  "org.apache.tinkerpop" % "gremlin-core" % tinkerpopVersion,
+  "org.apache.tinkerpop" % "tinkergraph-gremlin" % tinkerpopVersion,
+  "org.apache.tinkerpop" % "hadoop-gremlin" % tinkerpopVersion excludeAll ExclusionRule(organization = "org.apache.hadoop"),
+  "org.apache.tinkerpop" % "gremlin-groovy" % tinkerpopVersion
 )
 
 libraryDependencies := {

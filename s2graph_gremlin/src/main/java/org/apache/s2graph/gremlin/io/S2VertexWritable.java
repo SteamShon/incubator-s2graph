@@ -17,19 +17,15 @@
  * under the License.
  */
 
-package org.apache.s2graph.core.tinkerpop.io;
+package org.apache.s2graph.gremlin.io;
 
+
+import org.apache.hadoop.io.WritableComparable;
+import org.apache.hadoop.io.WritableUtils;
 
 import java.io.DataInput;
 import java.io.DataOutput;
 import java.io.IOException;
-
-import org.apache.hadoop.io.WritableComparable;
-import org.apache.hadoop.io.WritableUtils;
-import org.apache.s2graph.core.mysqls.ServiceColumn;
-import org.apache.tinkerpop.gremlin.structure.Graph;
-import org.apache.tinkerpop.gremlin.structure.T;
-import org.apache.tinkerpop.gremlin.structure.Vertex;
 
 public class S2VertexWritable implements WritableComparable<S2VertexWritable> {
     int columnId;

@@ -17,42 +17,28 @@
  * under the License.
  */
 
-package org.apache.s2graph.core.tinkerpop.structure;
+package org.apache.s2graph.gremlin.io;
 
-import org.apache.tinkerpop.gremlin.structure.Element;
-import org.apache.tinkerpop.gremlin.structure.Graph;
-import org.apache.tinkerpop.gremlin.structure.Property;
+import org.apache.hadoop.io.ArrayWritable;
+import org.apache.hadoop.io.Writable;
 
-import java.util.Iterator;
+import java.util.ArrayList;
+import java.util.List;
 
-public class S2Element implements Element {
-    @Override
-    public Object id() {
-        return null;
+public class S2EdgesWritable extends ArrayWritable {
+    public S2EdgesWritable() {
+        super(S2EdgeWritable.class);
     }
 
-    @Override
-    public String label() {
-        return null;
+    public S2EdgesWritable(List<S2EdgeWritable> list) {
+        super(S2EdgeWritable.class, list.toArray(new S2EdgeWritable[0]));
     }
 
-    @Override
-    public Graph graph() {
-        return null;
-    }
-
-    @Override
-    public <V> Property<V> property(String s, V v) {
-        return null;
-    }
-
-    @Override
-    public void remove() {
-
-    }
-
-    @Override
-    public <V> Iterator<? extends Property<V>> properties(String... strings) {
-        return null;
+    public List<S2EdgeWritable> getEdges() {
+        List<S2EdgeWritable> list = new ArrayList<>();
+        for(Writable w : get()){
+            list.add((S2EdgeWritable) w);
+        }
+        return list;
     }
 }

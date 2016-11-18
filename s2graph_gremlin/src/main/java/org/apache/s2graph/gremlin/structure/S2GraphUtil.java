@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.apache.s2graph.core.tinkerpop.structure;
+package org.apache.s2graph.gremlin.structure;
 
 import org.apache.s2graph.core.mysqls.Service;
 import org.apache.s2graph.core.mysqls.ServiceColumn;

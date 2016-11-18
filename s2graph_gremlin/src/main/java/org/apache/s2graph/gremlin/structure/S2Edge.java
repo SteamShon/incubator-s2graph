@@ -17,7 +17,8 @@
  * under the License.
  */
 
-package org.apache.s2graph.core.tinkerpop.structure;
+package org.apache.s2graph.gremlin.structure;
+
 
 import org.apache.s2graph.core.GraphUtil;
 import org.apache.s2graph.core.JSONParser;
@@ -28,7 +29,6 @@ import org.apache.tinkerpop.gremlin.structure.*;
 import org.apache.tinkerpop.gremlin.structure.util.ElementHelper;
 import scala.collection.JavaConversions;
 import scalikejdbc.AutoSession$;
-
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map;
@@ -220,5 +220,24 @@ public class S2Edge implements Edge {
         result = 31 * result + direction.hashCode();
         result = 31 * result + ts.hashCode();
         return result;
+    }
+    public org.apache.s2graph.core.Edge toInnerEdge() {
+        org.apache.s2graph.core.Vertex src = srcV.toInnerVertex();
+        org.apache.s2graph.core.Vertex tgt = srcV.toInnerVertex();
+        int dir = GraphUtil.toDirection(direction);
+        Byte op = (Byte) GraphUtil.operations().get(operation).get();
+        Map<String, Object> innerProps = new HashMap<>();
+        for (Map.Entry<String, Property<?>> e : props.entrySet()) {
+            if (labelMetas.containsKey(e.getKey())) {
+                innerProps.put(e.getKey(), props.get(e.getKey()).value());
+            }
+        }
+        return new org.apache.s2graph.core.Edge(src, tgt, innerLabel, dir, op, ts, org.apache.s2graph.core.Edge.toInnerProperties(innerLabel, innerProps, ts),
+                org.apache.s2graph.core.Edge.apply$default$8(),
+                org.apache.s2graph.core.Edge.apply$default$9(),
+                org.apache.s2graph.core.Edge.apply$default$10(),
+                org.apache.s2graph.core.Edge.apply$default$11(),
+                org.apache.s2graph.core.Edge.apply$default$12(),
+                org.apache.s2graph.core.Edge.apply$default$13());
     }
 }

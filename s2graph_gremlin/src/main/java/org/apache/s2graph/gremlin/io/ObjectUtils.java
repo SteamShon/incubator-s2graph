@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.apache.s2graph.core.tinkerpop.io;
+package org.apache.s2graph.gremlin.io;
 
 import java.io.*;
 

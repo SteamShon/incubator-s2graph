@@ -17,27 +17,18 @@
  * under the License.
  */
 
-package org.apache.s2graph.core.tinkerpop.io;
+import Common._
 
-import java.util.ArrayList;
-import java.util.List;
-import org.apache.hadoop.io.ArrayWritable;
-import org.apache.hadoop.io.Writable;
+name := "s2graph-gremlin"
 
-public class S2EdgesWritable extends ArrayWritable {
-    public S2EdgesWritable() {
-        super(S2EdgeWritable.class);
-    }
+scalacOptions ++= Seq("-feature", "-deprecation", "-language:existentials")
 
-    public S2EdgesWritable(List<S2EdgeWritable> list) {
-        super(S2EdgeWritable.class, list.toArray(new S2EdgeWritable[0]));
-    }
+scalacOptions in Test ++= Seq("-Yrangepos")
 
-    public List<S2EdgeWritable> getEdges() {
-        List<S2EdgeWritable> list = new ArrayList<>();
-        for(Writable w : get()){
-            list.add((S2EdgeWritable) w);
-        }
-        return list;
-    }
-}
+libraryDependencies ++= Seq(
+  "org.apache.tinkerpop" % "gremlin-core" % tinkerpopVersion,
+  "org.apache.tinkerpop" % "tinkergraph-gremlin" % tinkerpopVersion,
+  "org.apache.tinkerpop" % "hadoop-gremlin" % tinkerpopVersion excludeAll ExclusionRule(organization = "org.apache.hadoop"),
+  "org.apache.tinkerpop" % "gremlin-groovy" % tinkerpopVersion,
+  "org.specs2" %% "specs2-core" % specs2Version % "test"
+)

@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.apache.s2graph.core.tinkerpop.structure;
+package org.apache.s2graph.gremlin.structure;
 
 import org.apache.s2graph.core.mysqls.Service;
 import org.apache.s2graph.core.mysqls.ServiceColumn;
@@ -30,6 +30,8 @@ public class S2VertexId {
     private Object id;
     private String serviceName;
     private String columnName;
+    private Integer serviceId;
+    private Integer columnId;
 
     public S2VertexId(Service service, ServiceColumn column, Object id) {
         this.service = service;
@@ -38,6 +40,9 @@ public class S2VertexId {
 
         this.serviceName = service.serviceName();
         this.columnName = column.columnName();
+
+        this.serviceId = (Integer) service.id().get();
+        this.columnId = (Integer) column.id().get();
     }
 
     public S2Vertex toS2Vertex(S2Graph graph) {
@@ -111,4 +116,8 @@ public class S2VertexId {
         result = 31 * result + column.hashCode();
         return result;
     }
+
+    public Integer serviceId() { return serviceId; }
+
+    public Integer columnId() { return columnId; }
 }

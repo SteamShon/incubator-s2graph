@@ -17,16 +17,16 @@
  * under the License.
  */
 
-package org.apache.s2graph.core.tinkerpop.io;
+package org.apache.s2graph.gremlin.io;
+
+import org.apache.hadoop.io.WritableComparable;
+import org.apache.hadoop.io.WritableUtils;
 
 import java.io.DataInput;
 import java.io.DataOutput;
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
-
-import org.apache.hadoop.io.WritableComparable;
-import org.apache.hadoop.io.WritableUtils;
 
 public class S2EdgeWritable implements WritableComparable<S2EdgeWritable> {
     S2VertexWritable srcVertex;

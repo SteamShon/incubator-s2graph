@@ -17,11 +17,14 @@
  * under the License.
  */
 
-package org.apache.s2graph.core.tinkerpop.structure;
+package org.apache.s2graph.gremlin.structure;
 
 
 import org.apache.s2graph.core.*;
 import org.apache.s2graph.core.mysqls.ColumnMeta;
+import org.apache.s2graph.core.mysqls.ServiceColumn;
+import org.apache.s2graph.core.types.InnerValLike;
+import org.apache.s2graph.core.types.VertexId;
 import org.apache.tinkerpop.gremlin.structure.*;
 import org.apache.tinkerpop.gremlin.structure.Edge;
 import org.apache.tinkerpop.gremlin.structure.Graph;
@@ -30,6 +33,7 @@ import org.apache.tinkerpop.gremlin.structure.util.ElementHelper;
 import org.javatuples.Pair;
 import scala.collection.JavaConversions;
 import scala.concurrent.Await;
+
 import java.util.*;
 
 public class S2Vertex implements Vertex {
@@ -38,6 +42,7 @@ public class S2Vertex implements Vertex {
     private Map<String, VertexProperty<?>> props;
     private long ts;
     private String operation;
+
 
     public S2Vertex(S2Graph graph, Object... keyValues) {
         if (keyValues.length < 6) throw new RuntimeException("not enough parameter for S2VertexId.");
@@ -98,7 +103,7 @@ public class S2Vertex implements Vertex {
         String operation = (String) props.getOrDefault("operation", GraphUtil.defaultOp());
         S2Edge s2Edge = new S2Edge(graph, this, s2OutV, label, direction, props, ts, operation);
         try {
-            org.apache.s2graph.core.Edge innerE = org.apache.s2graph.core.Edge.fromS2Edge(s2Edge);
+            org.apache.s2graph.core.Edge innerE = s2Edge.toInnerEdge();
             boolean success = (boolean) Await.result(graph.getG().mutateEdge(innerE, true), S2Graph.timeout);
             System.out.println("[AddEdge]: " + innerE + ", " + success);
             return s2Edge;
@@ -112,11 +117,11 @@ public class S2Vertex implements Vertex {
     public Iterator<Edge> edges(Direction direction, String... labels) {
         List<Edge> results = new ArrayList<>();
         List<org.apache.s2graph.core.Vertex> vertices = new ArrayList<>();
-        List<org.apache.s2graph.core.Step> steps = new ArrayList<>();
-        List<org.apache.s2graph.core.QueryParam> queryParams = new ArrayList<>();
+        List<Step> steps = new ArrayList<>();
+        List<QueryParam> queryParams = new ArrayList<>();
 
         // step 1. set up start vertices.
-        vertices.add(org.apache.s2graph.core.Vertex.fromS2Vertex(this));
+        vertices.add(toInnerVertex());
         System.out.println("[SrcVertex]: " + Arrays.toString(vertices.toArray()));
         // step 2. build QueryParam for this step.
         for (int i = 0; i < labels.length; i++) {
@@ -309,5 +314,30 @@ public class S2Vertex implements Vertex {
         result = 31 * result + (int) (ts ^ (ts >>> 32));
         result = 31 * result + operation.hashCode();
         return result;
+    }
+
+    public ServiceColumn column() {
+        return vertexId.getColumn();
+    }
+
+    public org.apache.s2graph.core.Vertex toInnerVertex() {
+        InnerValLike innerVal = JSONParser.toInnerVal(getVertexId().getId(),
+                column().columnType(),
+                column().schemaVersion());
+        Byte op = (Byte) GraphUtil.toOp(operation).get();
+        VertexId vId = new VertexId(vertexId.columnId(), innerVal);
+        Map<String, Object> innerProps = new HashMap<>();
+
+        for (Map.Entry<String, VertexProperty<?>> e: props.entrySet()) {
+            if (column().metasInvMap().contains(e.getKey())) {
+                innerProps.put(e.getKey(), props.get(e.getKey()).value());
+            }
+        }
+
+        return new org.apache.s2graph.core.Vertex(vId,
+                ts,
+                org.apache.s2graph.core.Vertex.toInnerProperties(column(), innerProps, ts),
+                op,
+                org.apache.s2graph.core.Vertex.apply$default$5());
     }
 }

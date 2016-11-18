@@ -17,13 +17,13 @@
  * under the License.
  */
 
-package org.apache.s2graph.core.tinkerpop.structure;
-
-import java.io.IOException;
+package org.apache.s2graph.gremlin.structure;
 
 import org.apache.tinkerpop.shaded.jackson.core.JsonGenerator;
 import org.apache.tinkerpop.shaded.jackson.databind.SerializerProvider;
 import org.apache.tinkerpop.shaded.jackson.databind.ser.std.StdSerializer;
+
+import java.io.IOException;
 
 public class S2VertexIdJsonSerializer extends StdSerializer<S2VertexId> {
     public S2VertexIdJsonSerializer() {
