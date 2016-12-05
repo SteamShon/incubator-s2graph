@@ -26,6 +26,8 @@ import com.typesafe.config.{Config, ConfigFactory}
 import org.apache.commons.configuration.Configuration
 import org.apache.s2graph.core.GraphExceptions.{FetchTimeoutException, LabelNotExistException}
 import org.apache.s2graph.core.JSONParser._
+import org.apache.s2graph.core.features
+import org.apache.s2graph.core.features.S2GraphFeatures
 import org.apache.s2graph.core.mysqls._
 import org.apache.s2graph.core.storage.hbase.AsynchbaseStorage
 import org.apache.s2graph.core.storage.{SKeyValue, Storage}
@@ -33,7 +35,7 @@ import org.apache.s2graph.core.types._
 import org.apache.s2graph.core.utils.{DeferCache, Extensions, logger}
 import org.apache.tinkerpop.gremlin.process.computer.GraphComputer
 import org.apache.tinkerpop.gremlin.structure
-import org.apache.tinkerpop.gremlin.structure.Graph.Variables
+import org.apache.tinkerpop.gremlin.structure.Graph.{Features, Variables}
 import org.apache.tinkerpop.gremlin.structure.util.ElementHelper
 import org.apache.tinkerpop.gremlin.structure.{Edge, Graph, T, Transaction}
 import play.api.libs.json.{JsObject, Json}
@@ -500,6 +502,7 @@ object S2Graph {
 
 }
 
+@Graph.OptIn(Graph.OptIn.SUITE_STRUCTURE_STANDARD)
 class S2Graph(_config: Config)(implicit val ec: ExecutionContext) extends Graph {
 
   import S2Graph._
@@ -1410,4 +1413,17 @@ class S2Graph(_config: Config)(implicit val ec: ExecutionContext) extends Graph 
   override def compute[C <: GraphComputer](aClass: Class[C]): C = ???
 
   override def compute(): GraphComputer = ???
+
+  class S2GraphFeatures extends Features {
+
+    override def edge(): Features.EdgeFeatures = new features.S2EdgeFeatures
+
+    override def graph(): Features.GraphFeatures = new features.S2GraphFeatures
+
+    override def supports(featureClass: Class[_ <: Features.FeatureSet], feature: String): Boolean =
+      super.supports(featureClass, feature)
+
+    override def vertex(): Features.VertexFeatures = new features.S2VertexFeatures
+  }
+
 }

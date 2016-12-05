@@ -17,13 +17,13 @@
  * under the License.
  */
 
-package org.apache.s2graph.core.Integrate.tinkerpop
+package org.apache.s2graph.core.Integrate.tinkerpop.structure
 
 import org.apache.s2graph.core.mysqls.Label
 import org.apache.s2graph.core.utils.logger
-import org.apache.s2graph.core.{S2Graph, TestCommonWithModels, S2Vertex}
+import org.apache.s2graph.core.{S2Graph, S2Vertex, TestCommonWithModels}
 import org.apache.tinkerpop.gremlin.process.traversal.dsl.graph.GraphTraversal
-import org.apache.tinkerpop.gremlin.structure.{Edge, Vertex, T}
+import org.apache.tinkerpop.gremlin.structure.{Edge, T, Vertex}
 import org.scalatest.{FunSuite, Matchers}
 
 
