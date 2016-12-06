@@ -1415,15 +1415,18 @@ class S2Graph(_config: Config)(implicit val ec: ExecutionContext) extends Graph 
   override def compute(): GraphComputer = ???
 
   class S2GraphFeatures extends Features {
+    import org.apache.s2graph.core.{features => FS}
+    override def edge(): Features.EdgeFeatures = new FS.S2EdgeFeatures
 
-    override def edge(): Features.EdgeFeatures = new features.S2EdgeFeatures
-
-    override def graph(): Features.GraphFeatures = new features.S2GraphFeatures
+    override def graph(): Features.GraphFeatures = new FS.S2GraphFeatures
 
     override def supports(featureClass: Class[_ <: Features.FeatureSet], feature: String): Boolean =
       super.supports(featureClass, feature)
 
-    override def vertex(): Features.VertexFeatures = new features.S2VertexFeatures
+    override def vertex(): Features.VertexFeatures = new FS.S2VertexFeatures
   }
 
+  private val s2Features = new S2GraphFeatures
+
+  override def features() = s2Features
 }
