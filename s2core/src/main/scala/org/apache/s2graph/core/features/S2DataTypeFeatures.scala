@@ -3,17 +3,21 @@ package org.apache.s2graph.core.features
 import org.apache.tinkerpop.gremlin.structure.Graph.Features
 
 case class S2DataTypeFeatures() extends Features.DataTypeFeatures {
-  override def supportsStringValues(): Boolean = false
+  override def supportsStringValues(): Boolean = true
+
+  override def supportsFloatValues(): Boolean = true
+
+  override def supportsDoubleValues(): Boolean = true
+
+  override def supportsIntegerValues(): Boolean = true
+
+  override def supportsLongValues(): Boolean = true
+
+  override def supportsBooleanValues(): Boolean = true
 
   override def supportsDoubleArrayValues(): Boolean = false
 
-  override def supportsDoubleValues(): Boolean = false
-
-  override def supportsIntegerValues(): Boolean = false
-
   override def supportsStringArrayValues(): Boolean = false
-
-  override def supportsLongValues(): Boolean = false
 
   override def supportsIntegerArrayValues(): Boolean = false
 
@@ -27,8 +31,6 @@ case class S2DataTypeFeatures() extends Features.DataTypeFeatures {
 
   override def supportsSerializableValues(): Boolean = false
 
-  override def supportsBooleanValues(): Boolean = false
-
   override def supportsLongArrayValues(): Boolean = false
 
   override def supportsMixedListValues(): Boolean = false
@@ -37,5 +39,4 @@ case class S2DataTypeFeatures() extends Features.DataTypeFeatures {
 
   override def supportsByteArrayValues(): Boolean = false
 
-  override def supportsFloatValues(): Boolean = false
 }

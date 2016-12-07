@@ -36,6 +36,7 @@ import org.apache.hadoop.hbase.{HBaseConfiguration, HColumnDescriptor, HTableDes
 import org.apache.hadoop.security.UserGroupInformation
 import org.apache.s2graph.core._
 import org.apache.s2graph.core.mysqls.LabelMeta
+import org.apache.s2graph.core.storage.Serializable._
 import org.apache.s2graph.core.storage._
 import org.apache.s2graph.core.storage.hbase.AsynchbaseStorage.{AsyncRPC, ScanWithRange}
 import org.apache.s2graph.core.types.{HBaseType, VertexId}
@@ -109,8 +110,9 @@ class AsynchbaseStorage(override val graph: S2Graph,
   lazy val clientWithFlush = AsynchbaseStorage.makeClient(config, "hbase.rpcs.buffered_flush_interval" -> "0")
   lazy val clients = Seq(client, clientWithFlush)
 
-  private val emptyKeyValues = new util.ArrayList[KeyValue]()
-  private val emptyStepResult = new util.ArrayList[StepResult]()
+  private def emptyKeyValuesLs = new util.ArrayList[util.ArrayList[KeyValue]]()
+  private def emptyKeyValues = new util.ArrayList[KeyValue]()
+  private def emptyStepResult = new util.ArrayList[StepResult]()
 
   private def client(withWait: Boolean): HBaseClient = if (withWait) clientWithFlush else client
 
@@ -540,6 +542,21 @@ class AsynchbaseStorage(override val graph: S2Graph,
     }
 
     Future.sequence(futures).map { result => result.toList.flatten }
+  }
+
+  override def getVerticesAll(offset: Int = 0, limit: Int = Int.MaxValue): Future[Seq[S2Vertex]] = {
+    // FIXME
+    val scanner = AsynchbasePatcher.newScanner(client, "s2graph")
+    scanner.setFamily(vertexCf)
+    scanner.setMaxVersions(1)
+
+    scanner.nextRows().toFuture(emptyKeyValuesLs).map{ kvsLs =>
+      kvsLs.map { kvs =>
+        // FIXME
+        val v = vertexDeserializer.fromKeyValuesInner(None, kvs, "v4", None)
+        v
+      }.toSeq
+    }
   }
 
   class V4ResultHandler(scanner: Scanner, defer: Deferred[util.ArrayList[KeyValue]], offset: Int, limit : Int) extends Callback[Object, util.ArrayList[util.ArrayList[KeyValue]]] {

@@ -7,5 +7,5 @@ class S2EdgeFeatures extends S2ElementFeatures with Features.EdgeFeatures {
 
   override def supportsAddEdges(): Boolean = false
 
-  override def properties(): Features.EdgePropertyFeatures = super.properties()
+  override def properties(): Features.EdgePropertyFeatures = new S2EdgePropertyFeatures
 }

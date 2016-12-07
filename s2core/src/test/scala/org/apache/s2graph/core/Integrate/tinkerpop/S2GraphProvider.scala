@@ -5,11 +5,11 @@ import java.util
 import org.apache.commons.configuration.Configuration
 import org.apache.s2graph.core.Management.JsonModel.Prop
 import org.apache.s2graph.core._
-import org.apache.s2graph.core.mysqls.{Label, Service}
-import org.apache.tinkerpop.gremlin.{LoadGraphWith, AbstractGraphProvider}
+import org.apache.s2graph.core.types.HBaseType._
 import org.apache.tinkerpop.gremlin.LoadGraphWith.GraphData
 import org.apache.tinkerpop.gremlin.structure.{T, Graph}
-import scala.collection.JavaConversions._
+import org.apache.tinkerpop.gremlin.{AbstractGraphProvider, LoadGraphWith}
+
 import scala.collection.JavaConverters._
 
 object S2GraphProvider {
@@ -26,6 +26,8 @@ class S2GraphProvider extends AbstractGraphProvider {
   override def getBaseConfiguration(s: String, aClass: Class[_], s1: String, graphData: GraphData): util.Map[String, AnyRef] = {
     val m = new java.util.HashMap[String, AnyRef]()
     m.put(Graph.GRAPH, classOf[S2Graph].getName)
+    m.put("db.default.url", "jdbc:mysql://default:3306/graph_dev")
+    m.put("db.default.driver", "com.mysql.jdbc.Driver")
     m
   }
 
@@ -35,201 +37,217 @@ class S2GraphProvider extends AbstractGraphProvider {
 
   override def getImplementations: util.Set[Class[_]] = S2GraphProvider.Implementation.asJava
 
-
   override def loadGraphData(graph: Graph, loadGraphWith: LoadGraphWith, testClass: Class[_], testName: String): Unit = {
-    /*
-      -- from 1
-      {"id":1,"label":"vertex",
-          "outE":
-            {"created":[
-                {"id":9,"inV":3,"properties":{"weight":0.4}}],
-             "knows":[
-                {"id":7,"inV":2,"properties":{"weight":0.5}},
-                {"id":8,"inV":4,"properties":{"weight":1.0}}]},
-      "properties":{"name":[{"id":0,"value":"marko"}],"age":[{"id":2,"value":29}]}}
-
-      -- from 2
-      {"id":2,"label":"vertex",
-          "inE":
-            {"knows":[
-                {"id":7,"outV":1,"properties":{"weight":0.5}}]},
-      "properties":{"name":[{"id":3,"value":"vadas"}],"age":[{"id":4,"value":27}]}}
-
-      -- from 3
-      {"id":3,"label":"vertex",
-          "inE":
-            {"created":[
-                {"id":9,"outV":1,"properties":{"weight":0.4}},
-                {"id":11,"outV":4,"properties":{"weight":0.4}},
-                {"id":12,"outV":6,"properties":{"weight":0.2}}]},
-      "properties":{"name":[{"id":5,"value":"lop"}],"lang":[{"id":6,"value":"java"}]}}
-
-      -- from 4
-      {"id":4,"label":"vertex",
-          "inE":
-            {"knows":[
-                {"id":8,"outV":1,"properties":{"weight":1.0}}]},
-          "outE":
-            {"created":[
-                {"id":10,"inV":5,"properties":{"weight":1.0}},
-                {"id":11,"inV":3,"properties":{"weight":0.4}}]},
-      "properties":{"name":[{"id":7,"value":"josh"}],"age":[{"id":8,"value":32}]}}
-
-      -- from 5
-      {"id":5,"label":"vertex",
-          "inE":
-            {"created":[
-                {"id":10,"outV":4,"properties":{"weight":1.0}}]},
-      "properties":{"name":[{"id":9,"value":"ripple"}],"lang":[{"id":10,"value":"java"}]}}
-
-      -- from 6
-      {"id":6,"label":"vertex",
-          "outE":
-            {"created":[
-                {"id":12,"inV":3,"properties":{"weight":0.2}}]},
-      "properties":{"name":[{"id":11,"value":"peter"}],"age":[{"id":12,"value":35}]}}
-    */
-//    graph.traversal.V.has("name", outVertexName).outE(edgeLabel).as("e").inV.has("name", inVertexName).select[Edge]("e").next.id;
     val s2Graph = graph.asInstanceOf[S2Graph]
     val mnt = s2Graph.getManagement()
-    val service = mnt.createService("s2graph", "localhost", "s2graph", 0, None).get
-    val serviceColumnString = s"${service.serviceName}::vertex"
-    Management.createServiceColumn(service.serviceName, "vertex", "integer", Seq(Prop("name", "-", "string"), Prop("age", "-1", "integer"), Prop("lang", "scala", "string")))
+    val service = s2Graph.DefaultService
 
-    val created = mnt.createLabel("created", service.serviceName, "vertex", "integer", service.serviceName, "vertex", "integer",
-      true, service.serviceName, Nil, Seq(Prop("weight", "0.0", "double")), "strong", None, None)
+    val personColumn = Management.createServiceColumn(service.serviceName, "person", "integer", Seq(Prop(T.id.toString, "-1", "integer"), Prop("name", "-", "string"), Prop("age", "0", "integer")))
+    val softwareColumn = Management.createServiceColumn(service.serviceName, "software", "integer", Seq(Prop(T.id.toString, "-1", "integer"), Prop("name", "-", "string"), Prop("lang", "-", "string")))
+//    val vertexColumn = Management.createServiceColumn(service.serviceName, "vertex", "integer", Seq(Prop(T.id.toString, "-1", "integer"), Prop("name", "-", "string"), Prop("age", "-1", "integer"), Prop("lang", "scala", "string")))
 
-    val knows = mnt.createLabel("knows", service.serviceName, "vertex", "integer", service.serviceName, "vertex", "integer",
-      true, service.serviceName, Nil, Seq(Prop("weight", "0.0", "double")), "strong", None, None)
+    val created = mnt.createLabel("created", service.serviceName, "person", "integer", service.serviceName, "software", "integer",
+      true, service.serviceName, Nil, Seq(Prop("weight", "0.0", "float")), "strong", None, None)
 
-    val vertex1 = s2Graph.addVertex(T.label, serviceColumnString, T.id, Int.box(1), "name", "marko", "age", Int.box(29))
-    val vertex2 = s2Graph.addVertex(T.label, serviceColumnString, T.id, Int.box(2), "name", "vadas", "age", Int.box(27))
-    val vertex3 = s2Graph.addVertex(T.label, serviceColumnString, T.id, Int.box(3), "name", "lop", "age", Int.box(27), "lang", "java")
-    val vertex4 = s2Graph.addVertex(T.label, serviceColumnString, T.id, Int.box(4), "name", "josh", "age", Int.box(32))
-    val vertex5 = s2Graph.addVertex(T.label, serviceColumnString, T.id, Int.box(5), "name", "ripple", "lang", "java")
-    val vertex6 = s2Graph.addVertex(T.label, serviceColumnString, T.id, Int.box(6), "name", "peter", "age", Int.box(35))
+    val knows = mnt.createLabel("knows", service.serviceName, "person", "integer", service.serviceName, "person", "integer",
+      true, service.serviceName, Nil, Seq(Prop("weight", "0.0", "float")), "strong", None, None)
 
-
-    /**
-     * from 1
-     */
-    s2Graph.addEdgeInner(
-      vertex1.asInstanceOf[S2Vertex],
-      vertex3.asInstanceOf[S2Vertex],
-      "created",
-      "out",
-      Map("weight" -> Double.box(0.4))
-    )
-//
-//    s2Graph.addEdgeInner(
-//      vertex1.asInstanceOf[S2Vertex],
-//      vertex2.asInstanceOf[S2Vertex],
-//      "knows",
-//      "out",
-//      Map("weight" -> Double.box(0.5))
-//    )
-//
-//    s2Graph.addEdgeInner(
-//      vertex1.asInstanceOf[S2Vertex],
-//      vertex4.asInstanceOf[S2Vertex],
-//      "knows",
-//      "out",
-//      Map("weight" -> Double.box(1.0))
-//    )
-//
-//    /**
-//     * from  2
-//     */
-//
-//    s2Graph.addEdgeInner(
-//      vertex2.asInstanceOf[S2Vertex],
-//      vertex1.asInstanceOf[S2Vertex],
-//      "knows",
-//      "in",
-//      Map("weight" -> Double.box(0.5))
-//    )
-//
-//    /**
-//     * from  3
-//     */
-//
-//    s2Graph.addEdgeInner(
-//      vertex3.asInstanceOf[S2Vertex],
-//      vertex1.asInstanceOf[S2Vertex],
-//      "created",
-//      "in",
-//      Map("weight" -> Double.box(0.4))
-//    )
-//
-//    s2Graph.addEdgeInner(
-//      vertex3.asInstanceOf[S2Vertex],
-//      vertex4.asInstanceOf[S2Vertex],
-//      "created",
-//      "in",
-//      Map("weight" -> Double.box(0.4))
-//    )
-//
-//    s2Graph.addEdgeInner(
-//      vertex3.asInstanceOf[S2Vertex],
-//      vertex6.asInstanceOf[S2Vertex],
-//      "created",
-//      "in",
-//      Map("weight" -> Double.box(0.2))
-//    )
-//
-//    /**
-//     * from  4
-//     */
-//
-//    s2Graph.addEdgeInner(
-//      vertex4.asInstanceOf[S2Vertex],
-//      vertex1.asInstanceOf[S2Vertex],
-//      "knows",
-//      "in",
-//      Map("weight" -> Double.box(1.0))
-//    )
-//
-//    s2Graph.addEdgeInner(
-//      vertex4.asInstanceOf[S2Vertex],
-//      vertex5.asInstanceOf[S2Vertex],
-//      "created",
-//      "out",
-//      Map("weight" -> Double.box(1.0))
-//    )
-//
-//    s2Graph.addEdgeInner(
-//      vertex4.asInstanceOf[S2Vertex],
-//      vertex3.asInstanceOf[S2Vertex],
-//      "created",
-//      "out",
-//      Map("weight" -> Double.box(0.4))
-//    )
-//
-//    /**
-//     * from 5
-//     */
-//
-//    s2Graph.addEdgeInner(
-//      vertex5.asInstanceOf[S2Vertex],
-//      vertex4.asInstanceOf[S2Vertex],
-//      "created",
-//      "in",
-//      Map("weight" -> Double.box(1.0))
-//    )
-//
-//    /**
-//     * from 6
-//     */
-//    s2Graph.addEdgeInner(
-//      vertex6.asInstanceOf[S2Vertex],
-//      vertex3.asInstanceOf[S2Vertex],
-//      "created",
-//      "out",
-//      Map("weight" -> Double.box(0.2))
-//    )
-
-    //    super.loadGraphData(graph, loadGraphWith, testClass, testName)
+    super.loadGraphData(graph, loadGraphWith, testClass, testName)
   }
+  //  override def loadGraphData(graph: Graph, loadGraphWith: LoadGraphWith, testClass: Class[_], testName: String): Unit = {
+//    /*
+//      -- from 1
+//      {"id":1,"label":"vertex",
+//          "outE":
+//            {"created":[
+//                {"id":9,"inV":3,"properties":{"weight":0.4}}],
+//             "knows":[
+//                {"id":7,"inV":2,"properties":{"weight":0.5}},
+//                {"id":8,"inV":4,"properties":{"weight":1.0}}]},
+//      "properties":{"name":[{"id":0,"value":"marko"}],"age":[{"id":2,"value":29}]}}
+//
+//      -- from 2
+//      {"id":2,"label":"vertex",
+//          "inE":
+//            {"knows":[
+//                {"id":7,"outV":1,"properties":{"weight":0.5}}]},
+//      "properties":{"name":[{"id":3,"value":"vadas"}],"age":[{"id":4,"value":27}]}}
+//
+//      -- from 3
+//      {"id":3,"label":"vertex",
+//          "inE":
+//            {"created":[
+//                {"id":9,"outV":1,"properties":{"weight":0.4}},
+//                {"id":11,"outV":4,"properties":{"weight":0.4}},
+//                {"id":12,"outV":6,"properties":{"weight":0.2}}]},
+//      "properties":{"name":[{"id":5,"value":"lop"}],"lang":[{"id":6,"value":"java"}]}}
+//
+//      -- from 4
+//      {"id":4,"label":"vertex",
+//          "inE":
+//            {"knows":[
+//                {"id":8,"outV":1,"properties":{"weight":1.0}}]},
+//          "outE":
+//            {"created":[
+//                {"id":10,"inV":5,"properties":{"weight":1.0}},
+//                {"id":11,"inV":3,"properties":{"weight":0.4}}]},
+//      "properties":{"name":[{"id":7,"value":"josh"}],"age":[{"id":8,"value":32}]}}
+//
+//      -- from 5
+//      {"id":5,"label":"vertex",
+//          "inE":
+//            {"created":[
+//                {"id":10,"outV":4,"properties":{"weight":1.0}}]},
+//      "properties":{"name":[{"id":9,"value":"ripple"}],"lang":[{"id":10,"value":"java"}]}}
+//
+//      -- from 6
+//      {"id":6,"label":"vertex",
+//          "outE":
+//            {"created":[
+//                {"id":12,"inV":3,"properties":{"weight":0.2}}]},
+//      "properties":{"name":[{"id":11,"value":"peter"}],"age":[{"id":12,"value":35}]}}
+//    */
+////    graph.traversal.V.has("name", outVertexName).outE(edgeLabel).as("e").inV.has("name", inVertexName).select[Edge]("e").next.id;
+//    val s2Graph = graph.asInstanceOf[S2Graph]
+//    val mnt = s2Graph.getManagement()
+//    val service = mnt.createService("s2graph", "localhost", "s2graph", 0, None).get
+//    val serviceColumnString = s"${service.serviceName}::vertex"
+//    Management.createServiceColumn(service.serviceName, "vertex", "integer", Seq(Prop("name", "-", "string"), Prop("age", "-1", "integer"), Prop("lang", "scala", "string")))
+//
+//    val created = mnt.createLabel("created", service.serviceName, "vertex", "integer", service.serviceName, "vertex", "integer",
+//      true, service.serviceName, Nil, Seq(Prop("weight", "0.0", "double")), "strong", None, None)
+//
+//    val knows = mnt.createLabel("knows", service.serviceName, "vertex", "integer", service.serviceName, "vertex", "integer",
+//      true, service.serviceName, Nil, Seq(Prop("weight", "0.0", "double")), "strong", None, None)
+//
+//    val vertex1 = s2Graph.addVertex(T.label, serviceColumnString, T.id, Int.box(1), "name", "marko", "age", Int.box(29))
+//    val vertex2 = s2Graph.addVertex(T.label, serviceColumnString, T.id, Int.box(2), "name", "vadas", "age", Int.box(27))
+//    val vertex3 = s2Graph.addVertex(T.label, serviceColumnString, T.id, Int.box(3), "name", "lop", "age", Int.box(27), "lang", "java")
+//    val vertex4 = s2Graph.addVertex(T.label, serviceColumnString, T.id, Int.box(4), "name", "josh", "age", Int.box(32))
+//    val vertex5 = s2Graph.addVertex(T.label, serviceColumnString, T.id, Int.box(5), "name", "ripple", "lang", "java")
+//    val vertex6 = s2Graph.addVertex(T.label, serviceColumnString, T.id, Int.box(6), "name", "peter", "age", Int.box(35))
+//
+//
+//    /**
+//     * from 1
+//     */
+//    s2Graph.addEdgeInner(
+//      vertex1.asInstanceOf[S2Vertex],
+//      vertex3.asInstanceOf[S2Vertex],
+//      "created",
+//      "out",
+//      Map("weight" -> Double.box(0.4))
+//    )
+////
+////    s2Graph.addEdgeInner(
+////      vertex1.asInstanceOf[S2Vertex],
+////      vertex2.asInstanceOf[S2Vertex],
+////      "knows",
+////      "out",
+////      Map("weight" -> Double.box(0.5))
+////    )
+////
+////    s2Graph.addEdgeInner(
+////      vertex1.asInstanceOf[S2Vertex],
+////      vertex4.asInstanceOf[S2Vertex],
+////      "knows",
+////      "out",
+////      Map("weight" -> Double.box(1.0))
+////    )
+////
+////    /**
+////     * from  2
+////     */
+////
+////    s2Graph.addEdgeInner(
+////      vertex2.asInstanceOf[S2Vertex],
+////      vertex1.asInstanceOf[S2Vertex],
+////      "knows",
+////      "in",
+////      Map("weight" -> Double.box(0.5))
+////    )
+////
+////    /**
+////     * from  3
+////     */
+////
+////    s2Graph.addEdgeInner(
+////      vertex3.asInstanceOf[S2Vertex],
+////      vertex1.asInstanceOf[S2Vertex],
+////      "created",
+////      "in",
+////      Map("weight" -> Double.box(0.4))
+////    )
+////
+////    s2Graph.addEdgeInner(
+////      vertex3.asInstanceOf[S2Vertex],
+////      vertex4.asInstanceOf[S2Vertex],
+////      "created",
+////      "in",
+////      Map("weight" -> Double.box(0.4))
+////    )
+////
+////    s2Graph.addEdgeInner(
+////      vertex3.asInstanceOf[S2Vertex],
+////      vertex6.asInstanceOf[S2Vertex],
+////      "created",
+////      "in",
+////      Map("weight" -> Double.box(0.2))
+////    )
+////
+////    /**
+////     * from  4
+////     */
+////
+////    s2Graph.addEdgeInner(
+////      vertex4.asInstanceOf[S2Vertex],
+////      vertex1.asInstanceOf[S2Vertex],
+////      "knows",
+////      "in",
+////      Map("weight" -> Double.box(1.0))
+////    )
+////
+////    s2Graph.addEdgeInner(
+////      vertex4.asInstanceOf[S2Vertex],
+////      vertex5.asInstanceOf[S2Vertex],
+////      "created",
+////      "out",
+////      Map("weight" -> Double.box(1.0))
+////    )
+////
+////    s2Graph.addEdgeInner(
+////      vertex4.asInstanceOf[S2Vertex],
+////      vertex3.asInstanceOf[S2Vertex],
+////      "created",
+////      "out",
+////      Map("weight" -> Double.box(0.4))
+////    )
+////
+////    /**
+////     * from 5
+////     */
+////
+////    s2Graph.addEdgeInner(
+////      vertex5.asInstanceOf[S2Vertex],
+////      vertex4.asInstanceOf[S2Vertex],
+////      "created",
+////      "in",
+////      Map("weight" -> Double.box(1.0))
+////    )
+////
+////    /**
+////     * from 6
+////     */
+////    s2Graph.addEdgeInner(
+////      vertex6.asInstanceOf[S2Vertex],
+////      vertex3.asInstanceOf[S2Vertex],
+////      "created",
+////      "out",
+////      Map("weight" -> Double.box(0.2))
+////    )
+//
+//    //    super.loadGraphData(graph, loadGraphWith, testClass, testName)
+//  }
 }
 //public class TinkerGraphProvider extends AbstractGraphProvider {
 //
@@ -383,6 +401,7 @@ class S2GraphProvider extends AbstractGraphProvider {
 //      return TinkerGraph.DefaultIdManager.INTEGER;
 //    else if (loadGraphWith.equals(LoadGraphWith.GraphData.CREW))
 //      return TinkerGraph.DefaultIdManager.INTEGER;
+//    else if (loadGraphWith.equals(LoadGraphWith.GraphData.GRATEFUL))
 //    else if (loadGraphWith.equals(LoadGraphWith.GraphData.GRATEFUL))
 //      return TinkerGraph.DefaultIdManager.INTEGER;
 //    else

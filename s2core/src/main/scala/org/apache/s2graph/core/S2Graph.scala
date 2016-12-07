@@ -41,6 +41,7 @@ import play.api.libs.json.{JsObject, Json}
 import scala.annotation.tailrec
 import scala.collection.JavaConversions._
 import scala.collection.JavaConverters._
+import scala.collection.mutable
 import scala.collection.mutable.{ArrayBuffer, ListBuffer}
 import scala.concurrent._
 import scala.concurrent.duration.Duration
@@ -55,13 +56,16 @@ object S2Graph {
 
   val DefaultScore = 1.0
 
+
   private val DefaultConfigs: Map[String, AnyRef] = Map(
     "hbase.zookeeper.quorum" -> "localhost",
     "hbase.table.name" -> "s2graph",
     "hbase.table.compression.algorithm" -> "gz",
     "phase" -> "dev",
-    "db.default.driver" ->  "org.h2.Driver",
-    "db.default.url" -> "jdbc:h2:file:./var/metastore;MODE=MYSQL",
+//    "db.default.driver" ->  "org.h2.Driver",
+//    "db.default.url" -> "jdbc:h2:file:./var/metastore;MODE=MYSQL",
+    "db.default.driver" -> "com.mysql.jdbc.Driver",
+    "db.default.url" -> "jdbc:mysql://default:3306/graph_dev",
     "db.default.password" -> "graph",
     "db.default.user" -> "graph",
     "cache.max.size" -> java.lang.Integer.valueOf(10000),
@@ -93,13 +97,14 @@ object S2Graph {
   var DefaultConfig: Config = ConfigFactory.parseMap(DefaultConfigs)
 
   def toTypeSafeConfig(configuration: Configuration): Config = {
-    var config = DefaultConfig
+    val m = new mutable.HashMap[String, AnyRef]()
     for {
       key <- configuration.getKeys
       value = configuration.getProperty(key)
     } {
-      config = config.withFallback(ConfigFactory.parseMap(Map(key -> value)))
+      m.put(key, value)
     }
+    val config  = ConfigFactory.parseMap(m).withFallback(DefaultConfig)
     config
   }
 
@@ -537,6 +542,8 @@ class S2Graph(_config: Config)(implicit val ec: ExecutionContext) extends Graph 
   Model.apply(config)
   Model.loadCache()
 
+
+
   val MaxRetryNum = config.getInt("max.retry.number")
   val MaxBackOff = config.getInt("max.back.off")
   val BackoffTimeout = config.getInt("back.off.timeout")
@@ -553,6 +560,7 @@ class S2Graph(_config: Config)(implicit val ec: ExecutionContext) extends Graph 
   val management = new Management(this)
 
   def getManagement() = management
+
   private def confWithFallback(conf: Config): Config = {
     conf.withFallback(config)
   }
@@ -602,6 +610,19 @@ class S2Graph(_config: Config)(implicit val ec: ExecutionContext) extends Graph 
     entry <- config.entrySet() if S2Graph.DefaultConfigs.contains(entry.getKey)
     (k, v) = (entry.getKey, entry.getValue)
   } logger.info(s"[Initialized]: $k, ${this.config.getAnyRef(k)}")
+
+  /* TODO */
+  val DefaultService = management.createService("_s2graph", "localhost", "s2graph", 0, None).get
+  val DefaultColumn = ServiceColumn.findOrInsert(DefaultService.id.get, "_vertex", Some("integer"), HBaseType.DEFAULT_VERSION)
+  val DefaultColumnMetas = {
+    ColumnMeta.findOrInsert(DefaultColumn.id.get, "name", "string")
+    ColumnMeta.findOrInsert(DefaultColumn.id.get, "age", "integer")
+    ColumnMeta.findOrInsert(DefaultColumn.id.get, "lang", "string")
+  }
+
+  val DefaultLabel = management.createLabel("_s2graph", DefaultService.serviceName, DefaultColumn.columnName, DefaultColumn.columnType,
+    DefaultService.serviceName, DefaultColumn.columnName, DefaultColumn.columnType, true, DefaultService.serviceName, Nil, Nil, "weak", None, None)
+
 
   def getStorage(service: Service): Storage[_, _] = {
     storagePool.getOrElse(s"service:${service.serviceName}", defaultStorage)
@@ -1375,35 +1396,54 @@ class S2Graph(_config: Config)(implicit val ec: ExecutionContext) extends Graph 
    * @return
    */
   override def vertices(vertexIds: AnyRef*): util.Iterator[structure.Vertex] = {
-    val fetchVertices = vertexIds.lastOption.map { lastParam =>
-      if (lastParam.isInstanceOf[Boolean]) lastParam.asInstanceOf[Boolean]
-      else false
-    }.getOrElse(false)
-
-    val vertices = for {
-      vertexId <- vertexIds if vertexId.isInstanceOf[VertexId]
-    } yield newVertex(vertexId.asInstanceOf[VertexId])
-
-    if (fetchVertices) {
-      val future = getVertices(vertices).map { vs =>
-        val ls = new util.ArrayList[structure.Vertex]()
-        ls.addAll(vs)
-        ls.iterator()
-      }
-      Await.result(future, WaitTimeout)
+    logger.error(s"vertices: ${vertexIds.toList}")
+    if (vertexIds.isEmpty) {
+      verticesAll()
     } else {
-      vertices.iterator
+      val fetchVertices = vertexIds.lastOption.map { lastParam =>
+        if (lastParam.isInstanceOf[Boolean]) lastParam.asInstanceOf[Boolean]
+        else false
+      }.getOrElse(false)
+
+      val vertices = for {
+        vertexId <- vertexIds if vertexId.isInstanceOf[VertexId]
+      } yield newVertex(vertexId.asInstanceOf[VertexId])
+
+      if (fetchVertices) {
+        val future = getVertices(vertices).map { vs =>
+          val ls = new util.ArrayList[structure.Vertex]()
+          ls.addAll(vs)
+          ls.iterator()
+        }
+        Await.result(future, WaitTimeout)
+      } else {
+        vertices.iterator
+      }
     }
   }
 
+  def verticesAll(): util.Iterator[structure.Vertex] = {
+    logger.error(s"verticesAll")
+    val ls = new util.ArrayList[structure.Vertex]()
+    val ret = Await.result(defaultStorage.getVerticesAll(), WaitTimeout)
+
+    ret.map { s2Vertex =>
+      ls.add(s2Vertex)
+    }
+
+    ls.iterator()
+  }
+
+//  T.label, "person", "name", "marko"
   override def addVertex(kvs: AnyRef*): structure.Vertex = {
+    logger.error(s"[addVertex]: ${kvs.toList}")
     val kvsMap = ElementHelper.asMap(kvs: _*).asScala.toMap
-    val id = kvsMap.getOrElse(T.id.toString, throw new RuntimeException(s"T.id is required. only ${kvs} are provided."))
-    val serviceColumnNames = kvsMap.getOrElse(T.label.toString, throw new RuntimeException("ServiceName::ColumnName is required.")).toString
-    val names = serviceColumnNames.split(S2Vertex.VertexLabelDelimiter)
-    if (names.length != 2) throw new RuntimeException("malformed data on vertex label.")
-    val serviceName = names(0)
-    val columnName = names(1)
+    val id = kvsMap.getOrElse(T.id.toString, Random.nextLong())
+    val serviceColumnName = kvsMap.getOrElse(T.label.toString, DefaultColumn.columnName).toString
+    val names = serviceColumnName.split(S2Vertex.VertexLabelDelimiter)
+    val (serviceName, columnName) =
+      if (names.length == 1) (DefaultService.serviceName, names(0))
+      else throw new RuntimeException("malformed data on vertex label.")
 
     val vertex = toVertex(serviceName, columnName, id, kvsMap)
     val future = mutateVertices(Seq(vertex), withWait = true).map { vs =>

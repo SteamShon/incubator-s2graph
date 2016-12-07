@@ -45,7 +45,8 @@ libraryDependencies ++= Seq(
   "org.apache.tinkerpop" % "gremlin-core" % tinkerpopVersion,
   "org.apache.tinkerpop" % "gremlin-test" % tinkerpopVersion,
   "org.scalatest" %% "scalatest" % "2.2.4" % "test",
-  "org.specs2" %% "specs2-core" % specs2Version % "test"
+  "org.specs2" %% "specs2-core" % specs2Version % "test",
+  "mysql" % "mysql-connector-java" % "5.1.40"
 )
 
 libraryDependencies := {

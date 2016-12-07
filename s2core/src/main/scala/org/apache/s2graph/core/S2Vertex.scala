@@ -25,6 +25,7 @@ import java.util.function.{Consumer, BiConsumer}
 import org.apache.s2graph.core.S2Vertex.Props
 import org.apache.s2graph.core.mysqls.{ColumnMeta, LabelMeta, Service, ServiceColumn}
 import org.apache.s2graph.core.types._
+import org.apache.s2graph.core.utils.logger
 import org.apache.tinkerpop.gremlin.structure.VertexProperty.Cardinality
 import org.apache.tinkerpop.gremlin.structure.util.ElementHelper
 import org.apache.tinkerpop.gremlin.structure.{Direction, Vertex, Edge, VertexProperty}
@@ -135,18 +136,32 @@ case class S2Vertex(graph: S2Graph,
     graph.fetchEdges(this, labelNames, direction.name())
   }
 
-  override def property[V](cardinality: Cardinality, key: String, value: V, objects: AnyRef*): VertexProperty[V] = {
+  override def property[V](cardinality: Cardinality, key: String, value: V, kvs: AnyRef*): VertexProperty[V] = {
+    logger.error(s"[property] key: $key, value: $value, cardinality, $cardinality others: ${kvs.toList}")
+
+    val that = this
     cardinality match {
       case Cardinality.single =>
         val columnMeta = serviceColumn.metasInvMap.getOrElse(key, throw new RuntimeException(s"$key is not configured on Vertex."))
         val newProps = new S2VertexProperty[V](this, columnMeta, key, value)
         props.put(key, newProps)
+
+        val _kvs = ElementHelper.asMap(kvs: _*)
+        _kvs.forEach(new BiConsumer[String, AnyRef] {
+          override def accept(key: String, value: AnyRef): Unit = {
+            val columnMeta = serviceColumn.metasInvMap.getOrElse(key, throw new RuntimeException(s"$key is not configured on Vertex."))
+            val newProps = new S2VertexProperty[V](that, columnMeta, key, value.asInstanceOf[V])
+            props.put(key, newProps)
+          }
+        })
+
         newProps
       case _ => throw new RuntimeException("only single cardinality is supported.")
     }
   }
 
-  override def addEdge(label: String, vertex: Vertex, kvs: AnyRef*): S2Edge = {
+  override def addEdge(label: String, vertex: Vertex, kvs: AnyRef*): Edge = {
+    logger.error(s"[S2Vertex#addEdge: $label, $vertex, ${kvs.toList}")
     vertex match {
       case otherV: S2Vertex =>
         val props = ElementHelper.asMap(kvs: _*).asScala.toMap
@@ -161,7 +176,11 @@ case class S2Vertex(graph: S2Graph,
   }
 
   override def property[V](key: String): VertexProperty[V] = {
-    props.get(key).asInstanceOf[S2VertexProperty[V]]
+    if (props.containsKey(key)) {
+      props.get(key).asInstanceOf[S2VertexProperty[V]]
+    } else {
+      VertexProperty.empty[V]()
+    }
   }
 
   override def properties[V](keys: String*): util.Iterator[VertexProperty[V]] = {

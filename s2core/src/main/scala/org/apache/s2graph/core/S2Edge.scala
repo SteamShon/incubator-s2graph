@@ -526,14 +526,17 @@ case class S2Edge(innerGraph: S2Graph,
     newEdge
   }
 
+  //FIXME
   override def vertices(direction: Direction): util.Iterator[structure.Vertex] = {
     val arr = new util.ArrayList[Vertex]()
     direction match {
-      case Direction.OUT => arr.add(srcVertex)
-      case Direction.IN => arr.add(tgtVertex)
+      case Direction.OUT => innerGraph.getVertex(srcForVertex.id).foreach { v => arr.add(v) }
+      case Direction.IN => innerGraph.getVertex(tgtForVertex.id).foreach { v => arr.add(v) }
       case _ =>
-        arr.add(srcVertex)
-        arr.add(tgtVertex)
+        innerGraph.getVertex(srcForVertex.id).foreach { v => arr.add(v) }
+        innerGraph.getVertex(tgtForVertex.id).foreach { v => arr.add(v) }
+//        arr.add(srcVertex)
+//        arr.add(tgtVertex)
     }
     arr.iterator()
   }

@@ -29,6 +29,7 @@ import scala.collection.mutable.ListBuffer
 
 class VertexDeserializable(graph: S2Graph,
                            bytesToInt: (Array[Byte], Int) => Int = bytesToInt) extends Deserializable[S2Vertex] {
+
   def fromKeyValuesInner[T: CanSKeyValue](checkLabel: Option[Label],
                                           _kvs: Seq[T],
                                           version: String,

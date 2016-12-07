@@ -8,11 +8,11 @@ class S2VertexFeatures extends S2ElementFeatures with Features.VertexFeatures {
 
   override def supportsRemoveVertices(): Boolean = false
 
-  override def getCardinality(key: String): Cardinality = super.getCardinality(key)
+  override def getCardinality(key: String): Cardinality = Cardinality.single
 
   override def supportsMultiProperties(): Boolean = false
 
   override def supportsMetaProperties(): Boolean = false
 
-  override def properties(): Features.VertexPropertyFeatures = super.properties()
+  override def properties(): Features.VertexPropertyFeatures = new S2VertexPropertyFeatures
 }

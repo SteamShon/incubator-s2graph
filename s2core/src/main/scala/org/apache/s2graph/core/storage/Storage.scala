@@ -271,7 +271,11 @@ abstract class Storage[Q, R](val graph: S2Graph,
                   replicationScopeOpt: Option[Int] = None,
                   totalRegionCount: Option[Int] = None): Unit
 
-
+  /**
+   * return iterator which can iterate over all vertices.
+   * @return
+   */
+  def getVerticesAll(offset: Int = 0, limit: Int = Int.MaxValue): Future[Seq[S2Vertex]]
 
 
 
@@ -297,6 +301,9 @@ abstract class Storage[Q, R](val graph: S2Graph,
 
     Future.sequence(futures).map { result => result.toList.flatten }
   }
+
+
+
   def mutateStrongEdges(_edges: Seq[S2Edge], withWait: Boolean): Future[Seq[Boolean]] = {
 
     val edgeWithIdxs = _edges.zipWithIndex

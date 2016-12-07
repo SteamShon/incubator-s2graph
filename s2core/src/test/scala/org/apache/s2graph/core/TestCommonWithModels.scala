@@ -20,6 +20,7 @@
 package org.apache.s2graph.core
 
 import com.typesafe.config.{Config, ConfigFactory}
+import org.apache.commons.configuration.{BaseConfiguration, Configuration}
 import org.apache.s2graph.core.Management.JsonModel.{Index, Prop}
 import org.apache.s2graph.core.mysqls.{Label, LabelIndex, Service, ServiceColumn}
 import org.apache.s2graph.core.types.{InnerVal, LabelWithDirection}
@@ -37,8 +38,9 @@ trait TestCommonWithModels {
   var management: Management = _
 
   def initTests() = {
-    config = ConfigFactory.load()
-    graph = new S2Graph(config)(ExecutionContext.Implicits.global)
+    val configuration = new BaseConfiguration()
+    graph = S2Graph.open(configuration)
+    config = graph.config
     management = new Management(graph)
 
     implicit val session = AutoSession
