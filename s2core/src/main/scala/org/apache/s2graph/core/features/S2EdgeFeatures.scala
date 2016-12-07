@@ -5,7 +5,7 @@ import org.apache.tinkerpop.gremlin.structure.Graph.Features
 class S2EdgeFeatures extends S2ElementFeatures with Features.EdgeFeatures {
   override def supportsRemoveEdges(): Boolean = false
 
-  override def supportsAddEdges(): Boolean = false
+  override def supportsAddEdges(): Boolean = true
 
   override def properties(): Features.EdgePropertyFeatures = new S2EdgePropertyFeatures
 }

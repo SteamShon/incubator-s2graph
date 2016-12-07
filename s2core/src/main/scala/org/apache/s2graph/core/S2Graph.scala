@@ -21,7 +21,7 @@ package org.apache.s2graph.core
 
 import java.util
 import java.util.concurrent.{Executors, TimeUnit}
-import java.util.function.Supplier
+import java.util.function.{Consumer, Supplier}
 
 import com.typesafe.config.{Config, ConfigFactory}
 import org.apache.commons.configuration.{BaseConfiguration, Configuration}
@@ -35,6 +35,8 @@ import org.apache.s2graph.core.utils.{DeferCache, Extensions, logger}
 import org.apache.tinkerpop.gremlin.process.computer.GraphComputer
 import org.apache.tinkerpop.gremlin.structure
 import org.apache.tinkerpop.gremlin.structure.Graph.{Features, Variables}
+import org.apache.tinkerpop.gremlin.structure.Transaction.Status
+import org.apache.tinkerpop.gremlin.structure.util.AbstractTransaction.TransactionException
 import org.apache.tinkerpop.gremlin.structure.util.{AbstractThreadLocalTransaction, ElementHelper}
 import org.apache.tinkerpop.gremlin.structure.{Edge, Graph, T, Transaction}
 import play.api.libs.json.{JsObject, Json}
@@ -559,7 +561,7 @@ class S2Graph(_config: Config)(implicit val ec: ExecutionContext) extends Graph 
   val scheduledEx = ExecutionContext.fromExecutor(Executors.newSingleThreadExecutor())
 
   val management = new Management(this)
-
+  val s2Transaction = new S2Transaction(this)
   def getManagement() = management
 
   private def confWithFallback(conf: Config): Config = {
@@ -1319,7 +1321,7 @@ class S2Graph(_config: Config)(implicit val ec: ExecutionContext) extends Graph 
     val op = GraphUtil.toOp(operation).getOrElse(throw new RuntimeException(s"$operation is not supported."))
 
     val edge = newEdge(srcVertex, tgtVertex, label, dir, op = op, version = ts, propsWithTs = propsWithTs)
-    storedEdges += edge
+    tx().asInstanceOf[S2Transaction].edgesToCommit += edge
     edge
 //    Await.result(addEdgeInnerAsync(srcVertex, tgtVertex, labelName, direction, props, ts, operation), WaitTimeout)
   }
@@ -1460,7 +1462,7 @@ class S2Graph(_config: Config)(implicit val ec: ExecutionContext) extends Graph 
       else throw new RuntimeException("malformed data on vertex label.")
 
     val vertex = toVertex(serviceName, columnName, id, kvsMap)
-    storedVertices += vertex
+    tx().asInstanceOf[S2Transaction].verticesToCommit += vertex
     vertex
 //    val future = mutateVertices(Seq(vertex), withWait = true).map { vs =>
 //      if (vs.forall(identity)) vertex
@@ -1468,33 +1470,15 @@ class S2Graph(_config: Config)(implicit val ec: ExecutionContext) extends Graph 
 //    }
 //    Await.result(future, WaitTimeout)
   }
-  private val storedVertices = new ListBuffer[S2Vertex]()
-  private val storedEdges = new ListBuffer[S2Edge]()
 
-  def commit(): Boolean = {
-    val future = for {
-      verticesRets <- mutateVertices(storedVertices)
-      edgesRets <- mutateEdges(storedEdges)
-    } yield {
-        val ret = (verticesRets ++ edgesRets).forall(identity)
-        storedEdges.clear()
-        storedVertices.clear()
-        ret
-      }
-    Await.result(future, WaitTimeout)
-  }
 
-  def rollback(): Unit = {
-    storedEdges.clear()
-    storedVertices.clear()
-  }
   def addVertex(id: VertexId,
                 ts: Long = System.currentTimeMillis(),
                 props: S2Vertex.Props = S2Vertex.EmptyProps,
                 op: Byte = 0,
                 belongLabelIds: Seq[Int] = Seq.empty): S2Vertex = {
     val vertex = newVertex(id, ts, props, op, belongLabelIds)
-    storedVertices += vertex
+    tx().asInstanceOf[S2Transaction].verticesToCommit += vertex
     vertex
 //    val future = mutateVertices(Seq(vertex), withWait = true).map { rets =>
 //      if (rets.forall(identity)) vertex
@@ -1550,16 +1534,47 @@ class S2Graph(_config: Config)(implicit val ec: ExecutionContext) extends Graph 
 
   override def configuration(): Configuration = fromTypeSafeConfig(config)
 
-  override def tx(): Transaction = new S2Transaction(this)
+  override def tx(): Transaction = s2Transaction
 
   class S2Transaction(graph: S2Graph) extends AbstractThreadLocalTransaction(graph) {
     val localTx = ThreadLocal.withInitial(new Supplier[Boolean]{ override def get(): Boolean = false})
+
+    val edgesToCommit = new ListBuffer[S2Edge]()
+    val verticesToCommit = new ListBuffer[S2Vertex]()
+
     override def doCommit(): Unit = {
-      graph.commit()
-      localTx.set(false)
+      //TODO:
+      edgesToCommit.foreach { edge =>
+        logger.info(s"[S2Transaction#Edge]: commit $edge")
+      }
+      verticesToCommit.foreach { vertex =>
+        logger.info(s"[S2Transaction#Vertex]: commit $vertex")
+      }
+
+      val future = for {
+        verticesCommitted <- graph.mutateVertices(verticesToCommit)
+        edgesCommitted <- graph.mutateEdges(edgesToCommit)
+      } yield {
+        val ret = (verticesCommitted ++ edgesCommitted).forall(identity)
+//        edgesToCommit.clear()
+//        verticesToCommit.clear()
+        ret
+      }
+
+      try {
+        val startedAt = System.currentTimeMillis()
+        logger.info(s"[S2Transaction]: start to commit. $startedAt")
+        val committed = Await.result(future, graph.WaitTimeout)
+        val duration = System.currentTimeMillis() - startedAt
+        logger.info(s"[S2Transaction]: finished to commit. # of edges[${edgesToCommit.size}], # of vertices[${verticesToCommit.size}]: Duration[$duration]")
+        if (!committed) throw new TransactionException("doCommit failed.")
+      } finally {
+        localTx.set(false)
+      }
     }
     override def doRollback(): Unit = {
-      graph.rollback()
+      edgesToCommit.clear()
+      verticesToCommit.clear()
       localTx.set(false)
     }
     override def doOpen(): Unit = {
@@ -1567,6 +1582,12 @@ class S2Graph(_config: Config)(implicit val ec: ExecutionContext) extends Graph 
     }
     override def isOpen: Boolean = {
       localTx.get()
+    }
+
+    override def fireOnCommit(): Unit = {
+      edgesToCommit.clear()
+      verticesToCommit.clear()
+      super.fireOnCommit()
     }
   }
 

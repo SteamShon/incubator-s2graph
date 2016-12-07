@@ -149,8 +149,11 @@ class S2GraphTest extends FunSuite with Matchers with TestCommonWithModels {
     val knows = mnt.createLabel("knows", service.serviceName, "person", "integer", service.serviceName, "person", "integer",
       true, service.serviceName, Nil, Seq(Prop("weight", "0.0", "float")), "strong", None, None)
 
-    val marko = graph.addVertex(T.label, "person", T.id, Int.box(1), "name", "marko", "age", Int.box(29))
-    val vadas = graph.addVertex(T.label, "person", T.id, Int.box(2), "name", "vadas", "age", Int.box(27))
+    val marko = graph.addVertex(T.label, "person", T.id, Int.box(1))
+    marko.property("name", "marko")
+    marko.property("age", Int.box(29))
+    val vadas = graph.addVertex(T.label, "person", T.id, Int.box(2))
+    vadas.property("name", "vadas", "age", Int.box(27))
     val lop = graph.addVertex(T.label, "software", T.id, Int.box(3), "name", "lop", "lang", "java")
     val josh = graph.addVertex(T.label, "person", T.id, Int.box(4), "name", "josh", "age", Int.box(32))
     val ripple = graph.addVertex(T.label, "software", T.id, Int.box(5), "name", "ripple", "lang", "java")

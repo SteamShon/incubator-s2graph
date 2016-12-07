@@ -137,7 +137,7 @@ case class S2Vertex(graph: S2Graph,
   }
 
   override def property[V](cardinality: Cardinality, key: String, value: V, kvs: AnyRef*): VertexProperty[V] = {
-    logger.error(s"[property] key: $key, value: $value, cardinality, $cardinality others: ${kvs.toList}")
+//    logger.error(s"[property] key: $key, value: $value, cardinality, $cardinality others: ${kvs.toList}")
 
     val that = this
     cardinality match {

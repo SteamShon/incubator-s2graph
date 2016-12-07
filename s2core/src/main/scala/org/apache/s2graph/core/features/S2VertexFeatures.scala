@@ -4,7 +4,7 @@ import org.apache.tinkerpop.gremlin.structure.Graph.Features
 import org.apache.tinkerpop.gremlin.structure.VertexProperty.Cardinality
 
 class S2VertexFeatures extends S2ElementFeatures with Features.VertexFeatures {
-  override def supportsAddVertices(): Boolean = false
+  override def supportsAddVertices(): Boolean = true
 
   override def supportsRemoveVertices(): Boolean = false
 
