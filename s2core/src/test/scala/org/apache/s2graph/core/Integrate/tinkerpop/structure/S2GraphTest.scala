@@ -162,7 +162,10 @@ class S2GraphTest extends FunSuite with Matchers with TestCommonWithModels {
     josh.addEdge("created", ripple, T.id, Int.box(10), "weight", Float.box(1.0f))
     josh.addEdge("created", lop, T.id, Int.box(11), "weight", Float.box(0.4f))
     peter.addEdge("created", lop, T.id, Int.box(12), "weight", Float.box(0.2f))
+    graph.tx().commit()
+
     val verticees = s2Graph.traversal().V().asAdmin().toSeq
+
 
     val vs = verticees.toList
     val edgeId = graph.traversal().V().has("name", "marko").outE("knows").as("e").inV().has("name", "vadas").select[Edge]("e").toList.head.id()

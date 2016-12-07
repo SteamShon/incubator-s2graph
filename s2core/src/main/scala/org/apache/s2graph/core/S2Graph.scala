@@ -21,6 +21,7 @@ package org.apache.s2graph.core
 
 import java.util
 import java.util.concurrent.{Executors, TimeUnit}
+import java.util.function.Supplier
 
 import com.typesafe.config.{Config, ConfigFactory}
 import org.apache.commons.configuration.{BaseConfiguration, Configuration}
@@ -34,7 +35,7 @@ import org.apache.s2graph.core.utils.{DeferCache, Extensions, logger}
 import org.apache.tinkerpop.gremlin.process.computer.GraphComputer
 import org.apache.tinkerpop.gremlin.structure
 import org.apache.tinkerpop.gremlin.structure.Graph.{Features, Variables}
-import org.apache.tinkerpop.gremlin.structure.util.ElementHelper
+import org.apache.tinkerpop.gremlin.structure.util.{AbstractThreadLocalTransaction, ElementHelper}
 import org.apache.tinkerpop.gremlin.structure.{Edge, Graph, T, Transaction}
 import play.api.libs.json.{JsObject, Json}
 
@@ -1307,21 +1308,10 @@ class S2Graph(_config: Config)(implicit val ec: ExecutionContext) extends Graph 
                                  props: Map[String, AnyRef] = Map.empty,
                                  ts: Long = System.currentTimeMillis(),
                                  operation: String = "insert"): S2Edge = {
-    Await.result(addEdgeInnerAsync(srcVertex, tgtVertex, labelName, direction, props, ts, operation), WaitTimeout)
-  }
-
-  private[core] def addEdgeInnerAsync(srcVertex: S2Vertex,
-                                      tgtVertex: S2Vertex,
-                                      labelName: String,
-                                      direction: String = "out",
-                                      props: Map[String, AnyRef] = Map.empty,
-                                      ts: Long = System.currentTimeMillis(),
-                                      operation: String = "insert"): Future[S2Edge] = {
-    // Validations on input parameter
     val label = Label.findByName(labelName).getOrElse(throw new LabelNotExistException(labelName))
     val dir = GraphUtil.toDir(direction).getOrElse(throw new RuntimeException(s"$direction is not supported."))
-//    if (srcVertex.id.column != label.srcColumnWithDir(dir)) throw new RuntimeException(s"srcVertex's column[${srcVertex.id.column}] is not matched to label's srcColumn[${label.srcColumnWithDir(dir)}")
-//    if (tgtVertex.id.column != label.tgtColumnWithDir(dir)) throw new RuntimeException(s"tgtVertex's column[${tgtVertex.id.column}] is not matched to label's tgtColumn[${label.tgtColumnWithDir(dir)}")
+    //    if (srcVertex.id.column != label.srcColumnWithDir(dir)) throw new RuntimeException(s"srcVertex's column[${srcVertex.id.column}] is not matched to label's srcColumn[${label.srcColumnWithDir(dir)}")
+    //    if (tgtVertex.id.column != label.tgtColumnWithDir(dir)) throw new RuntimeException(s"tgtVertex's column[${tgtVertex.id.column}] is not matched to label's tgtColumn[${label.tgtColumnWithDir(dir)}")
 
     // Convert given Map[String, AnyRef] property into internal class.
     val propsPlusTs = props ++ Map(LabelMeta.timestamp.name -> ts)
@@ -1329,12 +1319,36 @@ class S2Graph(_config: Config)(implicit val ec: ExecutionContext) extends Graph 
     val op = GraphUtil.toOp(operation).getOrElse(throw new RuntimeException(s"$operation is not supported."))
 
     val edge = newEdge(srcVertex, tgtVertex, label, dir, op = op, version = ts, propsWithTs = propsWithTs)
-    // store edge into storage withWait option.
-    mutateEdges(Seq(edge), withWait = true).map { rets =>
-      if (!rets.headOption.getOrElse(false)) throw new RuntimeException("add edge failed.")
-      else edge
-    }
+    storedEdges += edge
+    edge
+//    Await.result(addEdgeInnerAsync(srcVertex, tgtVertex, labelName, direction, props, ts, operation), WaitTimeout)
   }
+
+//  private[core] def addEdgeInnerAsync(srcVertex: S2Vertex,
+//                                      tgtVertex: S2Vertex,
+//                                      labelName: String,
+//                                      direction: String = "out",
+//                                      props: Map[String, AnyRef] = Map.empty,
+//                                      ts: Long = System.currentTimeMillis(),
+//                                      operation: String = "insert"): Future[S2Edge] = {
+//    // Validations on input parameter
+//    val label = Label.findByName(labelName).getOrElse(throw new LabelNotExistException(labelName))
+//    val dir = GraphUtil.toDir(direction).getOrElse(throw new RuntimeException(s"$direction is not supported."))
+////    if (srcVertex.id.column != label.srcColumnWithDir(dir)) throw new RuntimeException(s"srcVertex's column[${srcVertex.id.column}] is not matched to label's srcColumn[${label.srcColumnWithDir(dir)}")
+////    if (tgtVertex.id.column != label.tgtColumnWithDir(dir)) throw new RuntimeException(s"tgtVertex's column[${tgtVertex.id.column}] is not matched to label's tgtColumn[${label.tgtColumnWithDir(dir)}")
+//
+//    // Convert given Map[String, AnyRef] property into internal class.
+//    val propsPlusTs = props ++ Map(LabelMeta.timestamp.name -> ts)
+//    val propsWithTs = label.propsToInnerValsWithTs(propsPlusTs, ts)
+//    val op = GraphUtil.toOp(operation).getOrElse(throw new RuntimeException(s"$operation is not supported."))
+//
+//    val edge = newEdge(srcVertex, tgtVertex, label, dir, op = op, version = ts, propsWithTs = propsWithTs)
+//    // store edge into storage withWait option.
+//    mutateEdges(Seq(edge), withWait = true).map { rets =>
+//      if (!rets.headOption.getOrElse(false)) throw new RuntimeException("add edge failed.")
+//      else edge
+//    }
+//  }
 
 
   def newVertexId(serviceName: String)(columnName: String)(id: Any): VertexId = {
@@ -1446,24 +1460,47 @@ class S2Graph(_config: Config)(implicit val ec: ExecutionContext) extends Graph 
       else throw new RuntimeException("malformed data on vertex label.")
 
     val vertex = toVertex(serviceName, columnName, id, kvsMap)
-    val future = mutateVertices(Seq(vertex), withWait = true).map { vs =>
-      if (vs.forall(identity)) vertex
-      else throw new RuntimeException("addVertex failed.")
-    }
+    storedVertices += vertex
+    vertex
+//    val future = mutateVertices(Seq(vertex), withWait = true).map { vs =>
+//      if (vs.forall(identity)) vertex
+//      else throw new RuntimeException("addVertex failed.")
+//    }
+//    Await.result(future, WaitTimeout)
+  }
+  private val storedVertices = new ListBuffer[S2Vertex]()
+  private val storedEdges = new ListBuffer[S2Edge]()
+
+  def commit(): Boolean = {
+    val future = for {
+      verticesRets <- mutateVertices(storedVertices)
+      edgesRets <- mutateEdges(storedEdges)
+    } yield {
+        val ret = (verticesRets ++ edgesRets).forall(identity)
+        storedEdges.clear()
+        storedVertices.clear()
+        ret
+      }
     Await.result(future, WaitTimeout)
   }
 
+  def rollback(): Unit = {
+    storedEdges.clear()
+    storedVertices.clear()
+  }
   def addVertex(id: VertexId,
                 ts: Long = System.currentTimeMillis(),
                 props: S2Vertex.Props = S2Vertex.EmptyProps,
                 op: Byte = 0,
                 belongLabelIds: Seq[Int] = Seq.empty): S2Vertex = {
     val vertex = newVertex(id, ts, props, op, belongLabelIds)
-    val future = mutateVertices(Seq(vertex), withWait = true).map { rets =>
-      if (rets.forall(identity)) vertex
-      else throw new RuntimeException("addVertex failed.")
-    }
-    Await.result(future, WaitTimeout)
+    storedVertices += vertex
+    vertex
+//    val future = mutateVertices(Seq(vertex), withWait = true).map { rets =>
+//      if (rets.forall(identity)) vertex
+//      else throw new RuntimeException("addVertex failed.")
+//    }
+//    Await.result(future, WaitTimeout)
   }
 
   override def close(): Unit = {
@@ -1490,8 +1527,6 @@ class S2Graph(_config: Config)(implicit val ec: ExecutionContext) extends Graph 
 
   override def features() = s2Features
 
-  override def tx(): Transaction = ???
-
   override def edges(edgeIds: AnyRef*): util.Iterator[structure.Edge] = {
     Await.result(edgesAsync(edgeIds: _*), WaitTimeout)
   }
@@ -1515,5 +1550,24 @@ class S2Graph(_config: Config)(implicit val ec: ExecutionContext) extends Graph 
 
   override def configuration(): Configuration = fromTypeSafeConfig(config)
 
+  override def tx(): Transaction = new S2Transaction(this)
+
+  class S2Transaction(graph: S2Graph) extends AbstractThreadLocalTransaction(graph) {
+    val localTx = ThreadLocal.withInitial(new Supplier[Boolean]{ override def get(): Boolean = false})
+    override def doCommit(): Unit = {
+      graph.commit()
+      localTx.set(false)
+    }
+    override def doRollback(): Unit = {
+      graph.rollback()
+      localTx.set(false)
+    }
+    override def doOpen(): Unit = {
+      localTx.set(true)
+    }
+    override def isOpen: Boolean = {
+      localTx.get()
+    }
+  }
 
 }

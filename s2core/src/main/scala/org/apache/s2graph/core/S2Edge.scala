@@ -469,17 +469,19 @@ case class S2Edge(innerGraph: S2Graph,
   }
 
   override def hashCode(): Int = {
-    MurmurHash3.stringHash(srcVertex.innerId + "," + labelWithDir + "," + tgtVertex.innerId)
+    id().hashCode()
+//    MurmurHash3.stringHash(srcVertex.innerId + "," + labelWithDir + "," + tgtVertex.innerId)
   }
 
   override def equals(other: Any): Boolean = other match {
     case e: S2Edge =>
-      srcVertex.innerId == e.srcVertex.innerId &&
-        tgtVertex.innerId == e.tgtVertex.innerId &&
-        labelWithDir == e.labelWithDir && S2Edge.sameProps(propsWithTs, e.propsWithTs) &&
-        op == e.op && version == e.version &&
-        pendingEdgeOpt == e.pendingEdgeOpt && lockTs == lockTs && statusCode == statusCode &&
-        parentEdges == e.parentEdges && originalEdgeOpt == originalEdgeOpt
+      id() == e.id()
+//      srcVertex.innerId == e.srcVertex.innerId &&
+//        tgtVertex.innerId == e.tgtVertex.innerId &&
+//        labelWithDir == e.labelWithDir && S2Edge.sameProps(propsWithTs, e.propsWithTs) &&
+//        op == e.op && version == e.version &&
+//        pendingEdgeOpt == e.pendingEdgeOpt && lockTs == lockTs && statusCode == statusCode &&
+//        parentEdges == e.parentEdges && originalEdgeOpt == originalEdgeOpt
     case _ => false
   }
 
