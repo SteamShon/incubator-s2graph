@@ -23,11 +23,9 @@ import java.util
 import java.util.concurrent.{Executors, TimeUnit}
 
 import com.typesafe.config.{Config, ConfigFactory}
-import org.apache.commons.configuration.Configuration
+import org.apache.commons.configuration.{BaseConfiguration, Configuration}
 import org.apache.s2graph.core.GraphExceptions.{FetchTimeoutException, LabelNotExistException}
 import org.apache.s2graph.core.JSONParser._
-import org.apache.s2graph.core.features
-import org.apache.s2graph.core.features.S2GraphFeatures
 import org.apache.s2graph.core.mysqls._
 import org.apache.s2graph.core.storage.hbase.AsynchbaseStorage
 import org.apache.s2graph.core.storage.{SKeyValue, Storage}
@@ -94,7 +92,33 @@ object S2Graph {
 
   var DefaultConfig: Config = ConfigFactory.parseMap(DefaultConfigs)
 
+  def toTypeSafeConfig(configuration: Configuration): Config = {
+    var config = DefaultConfig
+    for {
+      key <- configuration.getKeys
+      value = configuration.getProperty(key)
+    } {
+      config = config.withFallback(ConfigFactory.parseMap(Map(key -> value)))
+    }
+    config
+  }
 
+  def fromTypeSafeConfig(config: Config): Configuration = {
+    val configuration = new BaseConfiguration()
+    for {
+      e <- config.entrySet()
+    } {
+      configuration.setProperty(e.getKey, e.getValue.unwrapped())
+    }
+    configuration
+  }
+
+  def open(configuration: Configuration): S2Graph = {
+    val numOfThread = Runtime.getRuntime.availableProcessors()
+    val threadPool = Executors.newFixedThreadPool(numOfThread)
+    val ec = ExecutionContext.fromExecutor(threadPool)
+    new S2Graph(toTypeSafeConfig(configuration))(ec)
+  }
 
   def initStorage(graph: S2Graph, config: Config)(ec: ExecutionContext): Storage[_, _] = {
     val storageBackend = config.getString("s2graph.storage.backend")
@@ -502,6 +526,7 @@ object S2Graph {
 
 }
 
+
 @Graph.OptIn(Graph.OptIn.SUITE_STRUCTURE_STANDARD)
 class S2Graph(_config: Config)(implicit val ec: ExecutionContext) extends Graph {
 
@@ -525,6 +550,9 @@ class S2Graph(_config: Config)(implicit val ec: ExecutionContext) extends Graph 
   val WaitTimeout = Duration(60, TimeUnit.SECONDS)
   val scheduledEx = ExecutionContext.fromExecutor(Executors.newSingleThreadExecutor())
 
+  val management = new Management(this)
+
+  def getManagement() = management
   private def confWithFallback(conf: Config): Config = {
     conf.withFallback(config)
   }
@@ -1368,17 +1396,9 @@ class S2Graph(_config: Config)(implicit val ec: ExecutionContext) extends Graph 
     }
   }
 
-  override def tx(): Transaction = ???
-
-  override def edges(objects: AnyRef*): util.Iterator[structure.Edge] = ???
-
-  override def variables(): Variables = ???
-
-  override def configuration(): Configuration = ???
-
   override def addVertex(kvs: AnyRef*): structure.Vertex = {
     val kvsMap = ElementHelper.asMap(kvs: _*).asScala.toMap
-    val id = kvsMap.getOrElse(T.id.toString, throw new RuntimeException("T.id is required."))
+    val id = kvsMap.getOrElse(T.id.toString, throw new RuntimeException(s"T.id is required. only ${kvs} are provided."))
     val serviceColumnNames = kvsMap.getOrElse(T.label.toString, throw new RuntimeException("ServiceName::ColumnName is required.")).toString
     val names = serviceColumnNames.split(S2Vertex.VertexLabelDelimiter)
     if (names.length != 2) throw new RuntimeException("malformed data on vertex label.")
@@ -1429,4 +1449,31 @@ class S2Graph(_config: Config)(implicit val ec: ExecutionContext) extends Graph 
   private val s2Features = new S2GraphFeatures
 
   override def features() = s2Features
+
+  override def tx(): Transaction = ???
+
+  override def edges(edgeIds: AnyRef*): util.Iterator[structure.Edge] = {
+    Await.result(edgesAsync(edgeIds: _*), WaitTimeout)
+  }
+
+  def edgesAsync(edgeIds: AnyRef*): Future[util.Iterator[structure.Edge]] = {
+    val s2EdgeIds = edgeIds.filter(_.isInstanceOf[EdgeId]).map(_.asInstanceOf[EdgeId])
+    val innerEdges = for {
+      id <- s2EdgeIds
+    } yield {
+        toEdge(id.srcVertexId, id.tgtVertexId, id.labelName, id.direction)
+      }
+
+    checkEdges(innerEdges.toSeq).map { stepResult =>
+      val ls = new util.ArrayList[structure.Edge]
+      stepResult.edgeWithScores.foreach { es => ls.add(es.edge) }
+      ls.iterator()
+    }
+  }
+
+  override def variables(): Variables = ???
+
+  override def configuration(): Configuration = fromTypeSafeConfig(config)
+
+
 }

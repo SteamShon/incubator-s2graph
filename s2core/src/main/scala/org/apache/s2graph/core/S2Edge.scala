@@ -568,11 +568,11 @@ case class S2Edge(innerGraph: S2Graph,
 
   override def graph(): Graph = innerGraph
 
-  override def id(): AnyRef = (srcVertex.innerId, labelWithDir, tgtVertex.innerId)
+  override def id(): AnyRef = EdgeId(srcVertex.innerId.value, label(), tgtVertex.innerId.value, direction)
 
   override def label(): String = innerLabel.label
 }
-
+case class EdgeId(srcVertexId: Any, labelName: String, tgtVertexId: Any, direction: String)
 
 case class EdgeMutate(edgesToDelete: List[IndexEdge] = List.empty[IndexEdge],
                       edgesToInsert: List[IndexEdge] = List.empty[IndexEdge],
