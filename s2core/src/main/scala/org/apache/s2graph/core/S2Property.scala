@@ -26,16 +26,15 @@ import org.apache.tinkerpop.gremlin.structure.{Property}
 
 import scala.util.hashing.MurmurHash3
 
-
 case class S2Property[V](element: S2Edge,
                          labelMeta: LabelMeta,
                          key: String,
                          v: V,
                          ts: Long) extends Property[V] {
-
   import CanInnerValLike._
   lazy val innerVal = anyToInnerValLike.toInnerVal(value)(element.innerLabel.schemaVersion)
   lazy val innerValWithTs = InnerValLikeWithTs(innerVal, ts)
+  private var removed = false
 
   val value = castValue(v, labelMeta.dataType).asInstanceOf[V]
 
@@ -47,19 +46,17 @@ case class S2Property[V](element: S2Edge,
     innerValWithTs.bytes
   }
 
-  override def isPresent: Boolean = ???
+  override def isPresent: Boolean = !removed
 
-  override def remove(): Unit = ???
+  override def remove(): Unit = removed = true
 
   override def hashCode(): Int = {
-    MurmurHash3.stringHash(labelMeta.labelId + "," + labelMeta.id.get + "," + key + "," + value + "," + ts)
+    (element, key, v).hashCode()
   }
 
   override def equals(other: Any): Boolean = other match {
-    case p: S2Property[_] =>
-      labelMeta.labelId == p.labelMeta.labelId &&
-      labelMeta.seq == p.labelMeta.seq &&
-      key == p.key && value == p.value && ts == p.ts
+    case p: Property[_] =>
+      System.identityHashCode(element) == System.identityHashCode(p.element) && key == p.key() && v == p.value()
     case _ => false
   }
 

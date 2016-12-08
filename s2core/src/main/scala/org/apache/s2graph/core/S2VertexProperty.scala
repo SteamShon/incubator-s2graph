@@ -27,6 +27,8 @@ import org.apache.tinkerpop.gremlin.structure.{Property, VertexProperty, Vertex 
 
 import scala.util.hashing.MurmurHash3
 
+case class S2VertexPropertyId[V](columnMeta: ColumnMeta, value: V)
+
 case class S2VertexProperty[V](element: S2Vertex,
                                columnMeta: ColumnMeta,
                                key: String,
@@ -34,31 +36,31 @@ case class S2VertexProperty[V](element: S2Vertex,
   import CanInnerValLike._
   implicit lazy val encodingVer = element.serviceColumn.schemaVersion
   lazy val innerVal = CanInnerValLike.anyToInnerValLike.toInnerVal(value)
+  private var removed = false
+
+  val value = castValue(v, columnMeta.dataType).asInstanceOf[V]
+
   def toBytes: Array[Byte] = {
     innerVal.bytes
   }
-
-  val value = castValue(v, columnMeta.dataType).asInstanceOf[V]
 
   override def properties[U](strings: String*): util.Iterator[Property[U]] = ???
 
   override def property[V](key: String, value: V): Property[V] = ???
 
-  override def remove(): Unit = ???
+  override def remove(): Unit = removed = true
 
-  override def id(): AnyRef = ???
+  override def id(): AnyRef = S2VertexPropertyId(columnMeta, v)
 
-  override def isPresent: Boolean = ???
+  override def isPresent: Boolean = !removed
 
   override def hashCode(): Int = {
-    MurmurHash3.stringHash(columnMeta.columnId + "," + columnMeta.id.get + "," + key + "," + value)
+    (element, id()).hashCode()
   }
 
   override def equals(other: Any): Boolean = other match {
-    case p: S2VertexProperty[_] =>
-      columnMeta.columnId == p.columnMeta.columnId &&
-        columnMeta.seq == p.columnMeta.seq &&
-        key == p.key && value == p.value
+    case p: VertexProperty[_] =>
+      System.identityHashCode(element) == System.identityHashCode(p.element) && id() == p.id()
     case _ => false
   }
 

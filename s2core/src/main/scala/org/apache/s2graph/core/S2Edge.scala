@@ -476,7 +476,7 @@ case class S2Edge(innerGraph: S2Graph,
   override def equals(other: Any): Boolean = other match {
     case e: Edge =>
       (id(), e.id()) match {
-        case (mine: EdgeId, you: EdgeId) => mine == you
+        case (mine: EdgeId, you: EdgeId) => mine.equals(you)
         case _ => false
       }
 //      srcVertex.innerId == e.srcVertex.innerId &&

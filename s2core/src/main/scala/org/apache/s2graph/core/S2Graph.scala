@@ -628,6 +628,7 @@ class S2Graph(_config: Config)(implicit val ec: ExecutionContext) extends Graph 
     ColumnMeta.findOrInsert(DefaultColumn.id.get, "oid", "integer")
     ColumnMeta.findOrInsert(DefaultColumn.id.get, "communityIndex", "integer")
     ColumnMeta.findOrInsert(DefaultColumn.id.get, "test", "string")
+    ColumnMeta.findOrInsert(DefaultColumn.id.get, "testing", "string")
   }
 
   val DefaultLabel = management.createLabel("_s2graph", DefaultService.serviceName, DefaultColumn.columnName, DefaultColumn.columnType,
@@ -1422,7 +1423,7 @@ class S2Graph(_config: Config)(implicit val ec: ExecutionContext) extends Graph 
   override def vertices(vertexIds: AnyRef*): util.Iterator[structure.Vertex] = {
     logger.error(s"vertices: ${vertexIds.toList}")
     if (vertexIds.isEmpty) {
-      verticesAll()
+      verticesAll() ++ this.s2Transaction.verticesToCommit.values
     } else {
       val fetchVertices = vertexIds.lastOption.map { lastParam =>
         if (lastParam.isInstanceOf[Boolean]) lastParam.asInstanceOf[Boolean]
@@ -1437,6 +1438,8 @@ class S2Graph(_config: Config)(implicit val ec: ExecutionContext) extends Graph 
         val future = getVertices(vertices).map { vs =>
           val ls = new util.ArrayList[structure.Vertex]()
           ls.addAll(vs)
+          ls.addAll(this.s2Transaction.verticesToCommit.values.toList)
+
           ls.iterator()
         }
         Await.result(future, WaitTimeout)
@@ -1461,7 +1464,11 @@ class S2Graph(_config: Config)(implicit val ec: ExecutionContext) extends Graph 
 //  T.label, "person", "name", "marko"
   override def addVertex(kvs: AnyRef*): structure.Vertex = {
     logger.error(s"[addVertex]: ${kvs.toList}")
-    val kvsMap = ElementHelper.asMap(kvs: _*).asScala.toMap
+    val kvsMap = kvs.grouped(2).map { ls =>
+      (ls.head.toString, ls.last)
+    }.toMap
+
+//    val kvsMap = ElementHelper.asMap(kvs: _*).asScala.toMap
     val id = kvsMap.getOrElse(T.id.toString, Random.nextLong())
     val serviceColumnName = kvsMap.getOrElse(T.label.toString, DefaultColumn.columnName).toString
     val names = serviceColumnName.split(S2Vertex.VertexLabelDelimiter)
@@ -1474,22 +1481,6 @@ class S2Graph(_config: Config)(implicit val ec: ExecutionContext) extends Graph 
     vertex
 //    val future = mutateVertices(Seq(vertex), withWait = true).map { vs =>
 //      if (vs.forall(identity)) vertex
-//      else throw new RuntimeException("addVertex failed.")
-//    }
-//    Await.result(future, WaitTimeout)
-  }
-
-
-  def addVertex(id: VertexId,
-                ts: Long = System.currentTimeMillis(),
-                props: S2Vertex.Props = S2Vertex.EmptyProps,
-                op: Byte = 0,
-                belongLabelIds: Seq[Int] = Seq.empty): S2Vertex = {
-    val vertex = newVertex(id, ts, props, op, belongLabelIds)
-    tx().asInstanceOf[S2Transaction].verticesToCommit.put(vertex.id, vertex)
-    vertex
-//    val future = mutateVertices(Seq(vertex), withWait = true).map { rets =>
-//      if (rets.forall(identity)) vertex
 //      else throw new RuntimeException("addVertex failed.")
 //    }
 //    Await.result(future, WaitTimeout)
@@ -1527,8 +1518,10 @@ class S2Graph(_config: Config)(implicit val ec: ExecutionContext) extends Graph 
 
   def edgesAsync(edgeIds: AnyRef*): Future[util.Iterator[structure.Edge]] = {
     val s2EdgeIds = edgeIds.filter(_.isInstanceOf[EdgeId]).map(_.asInstanceOf[EdgeId])
+
     val (inMemoryIds, otherIds) = s2EdgeIds.partition(s2Transaction.edgesToCommit.containsKey(_))
     val inMemoryEdges = inMemoryIds.map { id => s2Transaction.edgesToCommit(id) }
+
     val edgesToFetch = for {
       id <- otherIds
     } yield {

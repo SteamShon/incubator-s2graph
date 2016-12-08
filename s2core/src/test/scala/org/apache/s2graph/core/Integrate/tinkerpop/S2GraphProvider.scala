@@ -40,11 +40,14 @@ class S2GraphProvider extends AbstractGraphProvider {
   override def loadGraphData(graph: Graph, loadGraphWith: LoadGraphWith, testClass: Class[_], testName: String): Unit = {
     val s2Graph = graph.asInstanceOf[S2Graph]
     val mnt = s2Graph.getManagement()
+
     val service = s2Graph.DefaultService
     val column = s2Graph.DefaultColumn
-    val personColumn = Management.createServiceColumn(service.serviceName, "person", "integer", Seq(Prop(T.id.toString, "-1", "integer"), Prop("name", "-", "string"), Prop("age", "0", "integer")))
+
+    val personColumn = Management.createServiceColumn(service.serviceName, "person", "integer", Seq(Prop(T.id.toString, "-1", "integer"), Prop("name", "-", "string"), Prop("age", "0", "integer"), Prop("location", "-", "string")))
     val softwareColumn = Management.createServiceColumn(service.serviceName, "software", "integer", Seq(Prop(T.id.toString, "-1", "integer"), Prop("name", "-", "string"), Prop("lang", "-", "string")))
     val productColumn = Management.createServiceColumn(service.serviceName, "product", "integer", Nil)
+    val dogColumn = Management.createServiceColumn(service.serviceName, "dog", "integer", Nil)
 //    val vertexColumn = Management.createServiceColumn(service.serviceName, "vertex", "integer", Seq(Prop(T.id.toString, "-1", "integer"), Prop("name", "-", "string"), Prop("age", "-1", "integer"), Prop("lang", "scala", "string")))
 
     val created = mnt.createLabel("created", service.serviceName, "person", "integer", service.serviceName, "software", "integer",
@@ -57,7 +60,7 @@ class S2GraphProvider extends AbstractGraphProvider {
       true, service.serviceName, Nil, Seq(Prop("x", "-", "string"), Prop("y", "-", "string")), "strong", None, None)
 
     val test = mnt.createLabel("test", service.serviceName, column.columnName, column.columnType, service.serviceName, column.columnName, column.columnType,
-      true, service.serviceName, Nil, Nil, "weak", None, None)
+      true, service.serviceName, Nil, Seq(Prop("xxx", "-", "string")), "weak", None, None)
 
     super.loadGraphData(graph, loadGraphWith, testClass, testName)
   }

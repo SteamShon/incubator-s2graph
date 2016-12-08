@@ -23,7 +23,7 @@ import java.util
 import java.util.function.{Consumer, BiConsumer}
 
 import org.apache.s2graph.core.S2Vertex.Props
-import org.apache.s2graph.core.mysqls.{ColumnMeta, LabelMeta, Service, ServiceColumn}
+import org.apache.s2graph.core.mysqls._
 import org.apache.s2graph.core.types._
 import org.apache.s2graph.core.utils.logger
 import org.apache.tinkerpop.gremlin.structure.VertexProperty.Cardinality
@@ -133,7 +133,17 @@ case class S2Vertex(graph: S2Graph,
   }
 
   override def edges(direction: Direction, labelNames: String*): util.Iterator[Edge] = {
-    graph.fetchEdges(this, labelNames, direction.name())
+    val allLabelNames =
+      if (labelNames.isEmpty)
+        direction match {
+          case Direction.OUT => Label.findBySrcColumnId(serviceColumn.id.get).map(_.label)
+          case Direction.IN => Label.findByTgtColumnId(serviceColumn.id.get).map(_.label)
+          case Direction.BOTH => Label.findBySrcColumnId(serviceColumn.id.get).map(_.label) ++ Label.findByTgtColumnId(serviceColumn.id.get).map(_.label)
+        }
+      else
+        labelNames.toSeq
+
+    graph.fetchEdges(this, allLabelNames, direction.name())
   }
 
   override def property[V](cardinality: Cardinality, key: String, value: V, kvs: AnyRef*): VertexProperty[V] = {
