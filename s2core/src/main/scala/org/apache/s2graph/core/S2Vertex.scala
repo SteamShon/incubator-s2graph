@@ -184,17 +184,22 @@ case class S2Vertex(graph: S2Graph,
   }
 
   override def properties[V](keys: String*): util.Iterator[VertexProperty[V]] = {
-    val ls = for {
-      key <- keys
-    } yield {
-      property[V](key)
+    val ls = new util.ArrayList[VertexProperty[V]]()
+    if (keys.isEmpty) {
+      props.keySet().forEach(new Consumer[String] {
+        override def accept(key: String): Unit = {
+          if (!ColumnMeta.reservedMetaNamesSet(key)) ls.add(property[V](key))
+        }
+      })
+    } else {
+      keys.foreach { key => ls.add(property[V](key)) }
     }
-    ls.iterator.asJava
+    ls.iterator
   }
 
   override def remove(): Unit = ???
 
-  override def label(): String = service.serviceName + S2Vertex.VertexLabelDelimiter + serviceColumn.columnName
+  override def label(): String = serviceColumn.columnName
 }
 
 object S2Vertex {

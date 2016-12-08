@@ -102,9 +102,9 @@ class IndexEdgeDeserializable(graph: S2Graph,
        if (k == LabelMeta.timestamp) tsVal = v.value.asInstanceOf[BigDecimal].longValue()
 
        if (k == LabelMeta.degree) {
-         edge.property(LabelMeta.degree.name, v.value, version)
+         edge.propertyInner(LabelMeta.degree.name, v.value, version)
        } else {
-         edge.property(meta.name, v.value, version)
+         edge.propertyInner(meta.name, v.value, version)
        }
      }
 
@@ -112,13 +112,13 @@ class IndexEdgeDeserializable(graph: S2Graph,
      if (op == GraphUtil.operations("incrementCount")) {
        //        val countVal = Bytes.toLong(kv.value)
        val countVal = bytesToLongFunc(kv.value, 0)
-       edge.property(LabelMeta.count.name, countVal, version)
+       edge.propertyInner(LabelMeta.count.name, countVal, version)
      } else {
        val (props, endAt) = bytesToKeyValues(kv.value, 0, kv.value.length, schemaVer, label)
        props.foreach { case (k, v) =>
          if (k == LabelMeta.timestamp) tsVal = v.value.asInstanceOf[BigDecimal].longValue()
 
-         edge.property(k.name, v.value, version)
+         edge.propertyInner(k.name, v.value, version)
        }
      }
      /** process tgtVertexId */
@@ -128,7 +128,7 @@ class IndexEdgeDeserializable(graph: S2Graph,
          TargetVertexId(ServiceColumn.Default, vId.innerVal)
        } else tgtVertexIdRaw
 
-     edge.property(LabelMeta.timestamp.name, tsVal, version)
+     edge.propertyInner(LabelMeta.timestamp.name, tsVal, version)
      edge.tgtVertex = graph.newVertex(tgtVertexId, version)
      edge.op = op
      edge.tsInnerValOpt = Option(InnerVal.withLong(tsVal, schemaVer))

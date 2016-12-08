@@ -41,16 +41,23 @@ class S2GraphProvider extends AbstractGraphProvider {
     val s2Graph = graph.asInstanceOf[S2Graph]
     val mnt = s2Graph.getManagement()
     val service = s2Graph.DefaultService
-
+    val column = s2Graph.DefaultColumn
     val personColumn = Management.createServiceColumn(service.serviceName, "person", "integer", Seq(Prop(T.id.toString, "-1", "integer"), Prop("name", "-", "string"), Prop("age", "0", "integer")))
     val softwareColumn = Management.createServiceColumn(service.serviceName, "software", "integer", Seq(Prop(T.id.toString, "-1", "integer"), Prop("name", "-", "string"), Prop("lang", "-", "string")))
+    val productColumn = Management.createServiceColumn(service.serviceName, "product", "integer", Nil)
 //    val vertexColumn = Management.createServiceColumn(service.serviceName, "vertex", "integer", Seq(Prop(T.id.toString, "-1", "integer"), Prop("name", "-", "string"), Prop("age", "-1", "integer"), Prop("lang", "scala", "string")))
 
     val created = mnt.createLabel("created", service.serviceName, "person", "integer", service.serviceName, "software", "integer",
-      true, service.serviceName, Nil, Seq(Prop("weight", "0.0", "float")), "strong", None, None)
+      true, service.serviceName, Nil, Seq(Prop("weight", "0.0", "double")), "strong", None, None)
 
     val knows = mnt.createLabel("knows", service.serviceName, "person", "integer", service.serviceName, "person", "integer",
-      true, service.serviceName, Nil, Seq(Prop("weight", "0.0", "float")), "strong", None, None)
+      true, service.serviceName, Nil, Seq(Prop("weight", "0.0", "double"), Prop("data", "-", "string"), Prop("year", "-1", "integer")), "strong", None, None)
+
+    val bought = mnt.createLabel("bought", service.serviceName, "person", "integer", service.serviceName, "product", "integer",
+      true, service.serviceName, Nil, Seq(Prop("x", "-", "string"), Prop("y", "-", "string")), "strong", None, None)
+
+    val test = mnt.createLabel("test", service.serviceName, column.columnName, column.columnType, service.serviceName, column.columnName, column.columnType,
+      true, service.serviceName, Nil, Nil, "weak", None, None)
 
     super.loadGraphData(graph, loadGraphWith, testClass, testName)
   }
