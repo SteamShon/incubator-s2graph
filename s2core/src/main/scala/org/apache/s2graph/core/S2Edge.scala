@@ -28,6 +28,7 @@ import org.apache.s2graph.core.mysqls.{Label, LabelIndex, LabelMeta}
 import org.apache.s2graph.core.types._
 import org.apache.s2graph.core.utils.logger
 import org.apache.tinkerpop.gremlin.structure
+import org.apache.tinkerpop.gremlin.structure.util.detached.DetachedEdge
 import org.apache.tinkerpop.gremlin.structure.{Direction, Edge, Graph, Property, Vertex}
 import play.api.libs.json.{JsNumber, JsObject, Json}
 

@@ -51,12 +51,12 @@ case class S2Property[V](element: S2Edge,
   override def remove(): Unit = removed = true
 
   override def hashCode(): Int = {
-    (element, key, v).hashCode()
+    (key, v).hashCode()
   }
 
   override def equals(other: Any): Boolean = other match {
     case p: Property[_] =>
-      System.identityHashCode(element) == System.identityHashCode(p.element) && key == p.key() && v == p.value()
+      key == p.key() && v == p.value()
     case _ => false
   }
 

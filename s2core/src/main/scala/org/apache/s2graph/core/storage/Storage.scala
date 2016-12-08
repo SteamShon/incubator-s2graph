@@ -277,7 +277,13 @@ abstract class Storage[Q, R](val graph: S2Graph,
    */
   def getVerticesAll(offset: Int = 0, limit: Int = Int.MaxValue): Future[Seq[S2Vertex]]
 
-
+  /**
+   *
+   * @param offset
+   * @param limit
+   * @return
+   */
+  def getEdgesAll(offset: Int = 0, limit: Int = Int.MaxValue): Future[Seq[S2Edge]]
 
   /** Public Interface */
   def getVertices(vertices: Seq[S2Vertex]): Future[Seq[S2Vertex]] = {

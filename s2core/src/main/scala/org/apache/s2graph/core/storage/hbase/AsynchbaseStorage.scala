@@ -35,7 +35,7 @@ import org.apache.hadoop.hbase.util.Bytes
 import org.apache.hadoop.hbase.{HBaseConfiguration, HColumnDescriptor, HTableDescriptor, TableName}
 import org.apache.hadoop.security.UserGroupInformation
 import org.apache.s2graph.core._
-import org.apache.s2graph.core.mysqls.LabelMeta
+import org.apache.s2graph.core.mysqls.{ServiceColumn, Label, LabelMeta}
 import org.apache.s2graph.core.storage.Serializable._
 import org.apache.s2graph.core.storage._
 import org.apache.s2graph.core.storage.hbase.AsynchbaseStorage.{AsyncRPC, ScanWithRange}
@@ -546,17 +546,42 @@ class AsynchbaseStorage(override val graph: S2Graph,
 
   override def getVerticesAll(offset: Int = 0, limit: Int = Int.MaxValue): Future[Seq[S2Vertex]] = {
     // FIXME
-    val scanner = AsynchbasePatcher.newScanner(client, "s2graph")
-    scanner.setFamily(vertexCf)
-    scanner.setMaxVersions(1)
+    val futures = ServiceColumn.findAll().map { column =>
+      val scanner = AsynchbasePatcher.newScanner(client, column.service.hTableName)
+      scanner.setFamily(vertexCf)
+      scanner.setMaxVersions(1)
 
-    scanner.nextRows().toFuture(emptyKeyValuesLs).map{ kvsLs =>
-      kvsLs.map { kvs =>
-        // FIXME
-        val v = vertexDeserializer.fromKeyValuesInner(None, kvs, "v4", None)
-        v
-      }.toSeq
+      scanner.nextRows().toFuture(emptyKeyValuesLs).map{ kvsLs =>
+        kvsLs.map { kvs =>
+          vertexDeserializer.fromKeyValuesInner(None, kvs, column.schemaVersion, None)
+        }.toSeq
+      }
     }
+    Future.sequence(futures).map(_.flatten)
+  }
+
+  override def getEdgesAll(offset: Int = 0, limit: Int = Int.MaxValue): Future[Seq[S2Edge]] = {
+    // FIXME
+    val futures = Label.findAll().map { label =>
+      val scanner = AsynchbasePatcher.newScanner(client, label.hbaseTableName)
+      scanner.setFamily(edgeCf)
+      scanner.setMaxVersions(1)
+
+      scanner.nextRows().toFuture(emptyKeyValuesLs).map{ kvsLs =>
+        kvsLs.flatMap { kvs =>
+          indexEdgeDeserializers.flatMap { case (schemaVer, des) =>
+            try {
+              des.fromKeyValues(Option(label), kvs, label.schemaVersion, None).toSeq
+            }  catch {
+              case e: Exception =>
+                Nil
+            }
+          }
+        }
+      }
+    }
+
+    Future.sequence(futures).map(_.flatten)
   }
 
   class V4ResultHandler(scanner: Scanner, defer: Deferred[util.ArrayList[KeyValue]], offset: Int, limit : Int) extends Callback[Object, util.ArrayList[util.ArrayList[KeyValue]]] {

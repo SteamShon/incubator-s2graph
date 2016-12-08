@@ -97,6 +97,7 @@ object ServiceColumn extends Model[ServiceColumn] {
       var cacheKey = s"serviceId=${x.serviceId}:columnName=${x.columnName}"
       (cacheKey -> x)
     })
+    ls
   }
 }
 case class ServiceColumn(id: Option[Int], serviceId: Int, columnName: String, columnType: String, schemaVersion: String)  {

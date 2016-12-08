@@ -1461,6 +1461,18 @@ class S2Graph(_config: Config)(implicit val ec: ExecutionContext) extends Graph 
     ls.iterator()
   }
 
+  def edgesAll(): util.Iterator[structure.Edge] = {
+    logger.error(s"edgesAll")
+    val ls = new util.ArrayList[structure.Edge]()
+    val ret = Await.result(defaultStorage.getEdgesAll(), WaitTimeout)
+
+    ret.map { s2Edge =>
+      ls.add(s2Edge)
+    }
+
+    ls.iterator()
+  }
+
 //  T.label, "person", "name", "marko"
   override def addVertex(kvs: AnyRef*): structure.Vertex = {
     logger.error(s"[addVertex]: ${kvs.toList}")
@@ -1513,7 +1525,11 @@ class S2Graph(_config: Config)(implicit val ec: ExecutionContext) extends Graph 
   override def features() = s2Features
 
   override def edges(edgeIds: AnyRef*): util.Iterator[structure.Edge] = {
-    Await.result(edgesAsync(edgeIds: _*), WaitTimeout)
+    if (edgeIds.isEmpty) {
+      edgesAll()
+    } else {
+      Await.result(edgesAsync(edgeIds: _*), WaitTimeout)
+    }
   }
 
   def edgesAsync(edgeIds: AnyRef*): Future[util.Iterator[structure.Edge]] = {
