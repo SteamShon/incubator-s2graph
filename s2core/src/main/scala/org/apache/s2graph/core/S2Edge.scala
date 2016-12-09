@@ -490,10 +490,11 @@ case class S2Edge(innerGraph: S2Graph,
   }
 
   override def toString(): String = {
-    Map("srcVertex" -> srcVertex.toString, "tgtVertex" -> tgtVertex.toString, "label" -> labelName, "direction" -> direction,
-      "operation" -> operation, "version" -> version, "props" -> propsWithTs.asScala.map(kv => kv._1 -> kv._2.value).toString,
-      "parentEdges" -> parentEdges, "originalEdge" -> originalEdgeOpt, "statusCode" -> statusCode, "lockTs" -> lockTs
-    ).toString
+    super.toString()
+//    Map("srcVertex" -> srcVertex.toString, "tgtVertex" -> tgtVertex.toString, "label" -> labelName, "direction" -> direction,
+//      "operation" -> operation, "version" -> version, "props" -> propsWithTs.asScala.map(kv => kv._1 -> kv._2.value).toString,
+//      "parentEdges" -> parentEdges, "originalEdge" -> originalEdgeOpt, "statusCode" -> statusCode, "lockTs" -> lockTs
+//    ).toString
   }
 
   def checkProperty(key: String): Boolean = propsWithTs.containsKey(key)
@@ -605,7 +606,18 @@ case class S2Edge(innerGraph: S2Graph,
 
   override def label(): String = innerLabel.label
 }
-case class EdgeId(srcVertexId: Any, labelName: String, tgtVertexId: Any, direction: String)
+case class EdgeId(srcVertexId: Any, labelName: String, tgtVertexId: Any, direction: String) {
+//  override def hashCode(): Int = (srcVertexId, labelName, tgtVertexId, direction).hashCode()
+//
+//  override def equals(obj: scala.Any): Boolean = obj match {
+//    case other: EdgeId =>
+//      srcVertexId == other.srcVertexId &&
+//      labelName == other.labelName &&
+//      tgtVertexId == other.tgtVertexId &&
+//      direction == direction && this.eq(other)
+//    case _ => false
+//  }
+}
 
 case class EdgeMutate(edgesToDelete: List[IndexEdge] = List.empty[IndexEdge],
                       edgesToInsert: List[IndexEdge] = List.empty[IndexEdge],

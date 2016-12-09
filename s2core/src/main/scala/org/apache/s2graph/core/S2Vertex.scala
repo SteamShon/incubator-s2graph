@@ -96,7 +96,8 @@ case class S2Vertex(graph: S2Graph,
   }
 
   override def toString(): String = {
-    Map("id" -> id.toString(), "ts" -> ts, "props" -> "", "op" -> op, "belongLabelIds" -> belongLabelIds).toString()
+    super.toString()
+//    Map("id" -> id.toString(), "ts" -> ts, "props" -> "", "op" -> op, "belongLabelIds" -> belongLabelIds).toString()
   }
 
   def toLogString(): String = {

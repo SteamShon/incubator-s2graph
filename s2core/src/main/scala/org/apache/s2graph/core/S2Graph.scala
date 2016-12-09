@@ -1423,7 +1423,7 @@ class S2Graph(_config: Config)(implicit val ec: ExecutionContext) extends Graph 
   override def vertices(vertexIds: AnyRef*): util.Iterator[structure.Vertex] = {
     logger.error(s"vertices: ${vertexIds.toList}")
     if (vertexIds.isEmpty) {
-      verticesAll() ++ this.s2Transaction.verticesToCommit.values
+      verticesAll()
     } else {
       val fetchVertices = vertexIds.lastOption.map { lastParam =>
         if (lastParam.isInstanceOf[Boolean]) lastParam.asInstanceOf[Boolean]
@@ -1458,19 +1458,25 @@ class S2Graph(_config: Config)(implicit val ec: ExecutionContext) extends Graph 
       ls.add(s2Vertex)
     }
 
-    ls.iterator()
+    ls.iterator() ++ s2Transaction.verticesToCommit.values
   }
 
   def edgesAll(): util.Iterator[structure.Edge] = {
     logger.error(s"edgesAll")
-    val ls = new util.ArrayList[structure.Edge]()
+    logger.error(s"edgesAll: InMemory[${s2Transaction.edgesToCommit.size}]")
+
+    val edges = new mutable.HashMap[EdgeId, Edge]()
     val ret = Await.result(defaultStorage.getEdgesAll(), WaitTimeout)
 
+    ret.foreach { x =>  logger.error(s"[FetchedEdge]: $x")}
+    logger.error(s"edgesAll: Storage[${ret.size}]")
+    s2Transaction.edgesToCommit.foreach { case (_, x) =>  logger.error(s"[FetchedEdge]: $x")}
+
     ret.map { s2Edge =>
-      ls.add(s2Edge)
+      edges += (s2Edge.id().asInstanceOf[EdgeId] -> s2Edge)
     }
 
-    ls.iterator()
+    (edges ++ s2Transaction.edgesToCommit).values.iterator
   }
 
 //  T.label, "person", "name", "marko"

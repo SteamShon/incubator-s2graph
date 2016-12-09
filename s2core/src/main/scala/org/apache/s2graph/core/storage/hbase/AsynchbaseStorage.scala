@@ -517,7 +517,30 @@ class AsynchbaseStorage(override val graph: S2Graph,
     }
   }
 
-
+  override def truncateTable(tableName: String): Unit = {
+    for {
+      zkAddr <- Seq(zkQuorum) ++ zkQuorumSlave.toSeq
+    } {
+      logger.info(s"truncate table: $tableName on $zkAddr")
+      val admin = getAdmin(zkAddr)
+      val tName = TableName.valueOf(tableName)
+      try {
+        if (admin.tableExists(tName)) {
+          admin.disableTable(tName)
+          admin.truncateTable(tName, true)
+        } else {
+          logger.info(s"$zkAddr, $tableName does not exist.")
+        }
+      } catch {
+        case e: Throwable =>
+          logger.error(s"$zkAddr, $tableName failed with $e", e)
+          throw e
+      } finally {
+        admin.close()
+        admin.getConnection.close()
+      }
+    }
+  }
   /** Asynchbase implementation override default getVertices to use future Cache */
   override def getVertices(vertices: Seq[S2Vertex]): Future[Seq[S2Vertex]] = {
     def fromResult(kvs: Seq[SKeyValue],
@@ -567,14 +590,11 @@ class AsynchbaseStorage(override val graph: S2Graph,
       scanner.setFamily(edgeCf)
       scanner.setMaxVersions(1)
 
-      scanner.nextRows().toFuture(emptyKeyValuesLs).map{ kvsLs =>
+      scanner.nextRows(10000).toFuture(emptyKeyValuesLs).map{ kvsLs =>
         kvsLs.flatMap { kvs =>
-          indexEdgeDeserializers.flatMap { case (schemaVer, des) =>
-            try {
-              des.fromKeyValues(Option(label), kvs, label.schemaVersion, None).toSeq
-            }  catch {
-              case e: Exception =>
-                Nil
+          kvs.flatMap { kv =>
+            indexEdgeDeserializers.flatMap { case (schemaVer, des) =>
+              des.fromKeyValues(Option(label), Seq(kv), label.schemaVersion, None)
             }
           }
         }

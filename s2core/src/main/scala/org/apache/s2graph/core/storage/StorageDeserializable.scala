@@ -111,7 +111,7 @@ trait StorageDeserializable[E] {
       Option(fromKeyValuesInner(checkLabel, kvs, version, cacheElementOpt))
     } catch {
       case e: Exception =>
-        logger.error(s"${this.getClass.getName} fromKeyValues failed.", e)
+//        logger.error(s"${this.getClass.getName} fromKeyValues failed.", e)
         None
     }
   }

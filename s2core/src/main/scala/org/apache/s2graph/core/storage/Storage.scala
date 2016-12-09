@@ -271,6 +271,7 @@ abstract class Storage[Q, R](val graph: S2Graph,
                   replicationScopeOpt: Option[Int] = None,
                   totalRegionCount: Option[Int] = None): Unit
 
+  def truncateTable(tableName: String): Unit
   /**
    * return iterator which can iterate over all vertices.
    * @return
@@ -284,6 +285,7 @@ abstract class Storage[Q, R](val graph: S2Graph,
    * @return
    */
   def getEdgesAll(offset: Int = 0, limit: Int = Int.MaxValue): Future[Seq[S2Edge]]
+
 
   /** Public Interface */
   def getVertices(vertices: Seq[S2Vertex]): Future[Seq[S2Vertex]] = {

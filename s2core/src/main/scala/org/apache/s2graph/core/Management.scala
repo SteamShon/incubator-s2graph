@@ -348,6 +348,11 @@ class Management(graph: S2Graph) {
       old.consistencyLevel, hTableName, old.hTableTTL, old.schemaVersion, old.isAsync, old.compressionAlgorithm, old.options)
   }
 
+  def truncateStorage(labelName: String): Unit = {
+    val label = Label.findByName(labelName).getOrElse(throw new LabelNotExistException(labelName))
+    graph.getStorage(label).truncateTable(label.hbaseTableName)
+  }
+
   def getCurrentStorageInfo(labelName: String): Try[Map[String, String]] = for {
     label <- Try(Label.findByName(labelName, useCache = false).get)
   } yield {

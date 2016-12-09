@@ -1,10 +1,12 @@
 package org.apache.s2graph.core.Integrate.tinkerpop
 
+import java.io.File
 import java.util
 
 import org.apache.commons.configuration.Configuration
 import org.apache.s2graph.core.Management.JsonModel.Prop
 import org.apache.s2graph.core._
+import org.apache.s2graph.core.mysqls.Label
 import org.apache.s2graph.core.types.HBaseType._
 import org.apache.tinkerpop.gremlin.LoadGraphWith.GraphData
 import org.apache.tinkerpop.gremlin.structure.{T, Graph}
@@ -32,7 +34,15 @@ class S2GraphProvider extends AbstractGraphProvider {
   }
 
   override def clear(graph: Graph, configuration: Configuration): Unit = {
-
+    if (graph != null) {
+      val s2Graph = graph.asInstanceOf[S2Graph]
+      val labels = Label.findAll()
+      labels.groupBy(_.hbaseTableName).values.foreach { labelsWithSameTable =>
+        labelsWithSameTable.headOption.foreach { label =>
+          s2Graph.management.truncateStorage(label.label)
+        }
+      }
+    }
   }
 
   override def getImplementations: util.Set[Class[_]] = S2GraphProvider.Implementation.asJava
