@@ -106,14 +106,15 @@ object StorageDeserializable {
 }
 
 trait StorageDeserializable[E] {
-  def fromKeyValues[T: CanSKeyValue](kvs: Seq[T], cacheElementOpt: Option[E]): Option[E] = {
-    try {
-      Option(fromKeyValuesInner(kvs, cacheElementOpt))
-    } catch {
-      case e: Exception =>
-        logger.error(s"${this.getClass.getName} fromKeyValues failed.", e)
-        None
-    }
-  }
-  def fromKeyValuesInner[T: CanSKeyValue](kvs: Seq[T], cacheElementOpt: Option[E]): E
+  def fromKeyValues[T: CanSKeyValue](kvs: Seq[T], cacheElementOpt: Option[E]): Option[E]
+//  = {
+//    try {
+//      Option(fromKeyValuesInner(kvs, cacheElementOpt))
+//    } catch {
+//      case e: Exception =>
+//        logger.error(s"${this.getClass.getName} fromKeyValues failed.", e)
+//        None
+//    }
+//  }
+//  def fromKeyValuesInner[T: CanSKeyValue](kvs: Seq[T], cacheElementOpt: Option[E]): E
 }
