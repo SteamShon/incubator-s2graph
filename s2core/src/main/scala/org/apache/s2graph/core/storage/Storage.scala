@@ -75,7 +75,8 @@ abstract class Storage[Q, R](val graph: S2Graph,
    */
   def snapshotEdgeSerializer(snapshotEdge: SnapshotEdge): Serializable[SnapshotEdge] = {
     snapshotEdge.schemaVer match {
-      case VERSION1 | VERSION2 => new serde.snapshotedge.wide.SnapshotEdgeSerializable(snapshotEdge)
+//      case VERSION1 |
+      case VERSION2 => new serde.snapshotedge.wide.SnapshotEdgeSerializable(snapshotEdge)
       case VERSION3 | VERSION4 => new serde.snapshotedge.tall.SnapshotEdgeSerializable(snapshotEdge)
       case _ => throw new RuntimeException(s"not supported version: ${snapshotEdge.schemaVer}")
     }
@@ -88,7 +89,8 @@ abstract class Storage[Q, R](val graph: S2Graph,
    */
   def indexEdgeSerializer(indexEdge: IndexEdge): Serializable[IndexEdge] = {
     indexEdge.schemaVer match {
-      case VERSION1 | VERSION2 | VERSION3 => new IndexEdgeSerializable(indexEdge)
+//      case VERSION1
+      case VERSION2 | VERSION3 => new IndexEdgeSerializable(indexEdge)
       case VERSION4 => new serde.indexedge.tall.IndexEdgeSerializable(indexEdge)
       case _ => throw new RuntimeException(s"not supported version: ${indexEdge.schemaVer}")
 
@@ -113,7 +115,7 @@ abstract class Storage[Q, R](val graph: S2Graph,
    * */
 
   val snapshotEdgeDeserializers: Map[String, Deserializable[SnapshotEdge]] = Map(
-    VERSION1 -> new SnapshotEdgeDeserializable(graph),
+//    VERSION1 -> new SnapshotEdgeDeserializable(graph),
     VERSION2 -> new SnapshotEdgeDeserializable(graph),
     VERSION3 -> new serde.snapshotedge.tall.SnapshotEdgeDeserializable(graph),
     VERSION4 -> new serde.snapshotedge.tall.SnapshotEdgeDeserializable(graph)
@@ -123,7 +125,7 @@ abstract class Storage[Q, R](val graph: S2Graph,
 
   /** create deserializer that can parse stored CanSKeyValue into indexEdge. */
   val indexEdgeDeserializers: Map[String, Deserializable[S2Edge]] = Map(
-    VERSION1 -> new IndexEdgeDeserializable(graph),
+//    VERSION1 -> new IndexEdgeDeserializable(graph),
     VERSION2 -> new IndexEdgeDeserializable(graph),
     VERSION3 -> new IndexEdgeDeserializable(graph),
     VERSION4 -> new serde.indexedge.tall.IndexEdgeDeserializable(graph)
@@ -280,7 +282,7 @@ abstract class Storage[Q, R](val graph: S2Graph,
     def fromResult(kvs: Seq[SKeyValue],
                    version: String): Option[S2Vertex] = {
       if (kvs.isEmpty) None
-      else vertexDeserializer.fromKeyValues(None, kvs, version, None)
+      else vertexDeserializer.fromKeyValues(kvs, None)
 //        .map(S2Vertex(graph, _))
     }
 
@@ -837,7 +839,7 @@ abstract class Storage[Q, R](val graph: S2Graph,
       val queryOption = queryRequest.query.queryOption
       val queryParam = queryRequest.queryParam
       val schemaVer = queryParam.label.schemaVersion
-      val indexEdgeOpt = indexEdgeDeserializer(schemaVer).fromKeyValues(Option(queryParam.label), Seq(kv), queryParam.label.schemaVersion, cacheElementOpt)
+      val indexEdgeOpt = indexEdgeDeserializer(schemaVer).fromKeyValues(Seq(kv), cacheElementOpt)
       if (!queryOption.returnTree) indexEdgeOpt.map(indexEdge => indexEdge.copy(parentEdges = parentEdges))
       else indexEdgeOpt
     } catch {
@@ -855,7 +857,7 @@ abstract class Storage[Q, R](val graph: S2Graph,
 //        logger.debug(s"SnapshottoEdge: $kv")
     val queryParam = queryRequest.queryParam
     val schemaVer = queryParam.label.schemaVersion
-    val snapshotEdgeOpt = snapshotEdgeDeserializer(schemaVer).fromKeyValues(Option(queryParam.label), Seq(kv), queryParam.label.schemaVersion, cacheElementOpt)
+    val snapshotEdgeOpt = snapshotEdgeDeserializer(schemaVer).fromKeyValues(Seq(kv), cacheElementOpt)
 
     if (isInnerCall) {
       snapshotEdgeOpt.flatMap { snapshotEdge =>
@@ -901,7 +903,7 @@ abstract class Storage[Q, R](val graph: S2Graph,
       val schemaVer = queryParam.label.schemaVersion
       val cacheElementOpt =
         if (queryParam.isSnapshotEdge) None
-        else indexEdgeDeserializer(schemaVer).fromKeyValues(Option(queryParam.label), Seq(kv), queryParam.label.schemaVersion, None)
+        else indexEdgeDeserializer(schemaVer).fromKeyValues(Seq(kv), None)
 
       val (degreeEdges, keyValues) = cacheElementOpt match {
         case None => (Nil, kvs)
@@ -971,14 +973,14 @@ abstract class Storage[Q, R](val graph: S2Graph,
     tgtVertexIdOpt match {
       case Some(tgtVertexId) => // _to is given.
         /** we use toSnapshotEdge so dont need to swap src, tgt */
-        val src = InnerVal.convertVersion(srcVertex.innerId, srcColumn.columnType, label.schemaVersion)
-        val tgt = InnerVal.convertVersion(tgtVertexId, tgtColumn.columnType, label.schemaVersion)
+        val src = srcVertex.innerId
+        val tgt = tgtVertexId
         val (srcVId, tgtVId) = (SourceVertexId(srcColumn, src), TargetVertexId(tgtColumn, tgt))
         val (srcV, tgtV) = (graph.newVertex(srcVId), graph.newVertex(tgtVId))
 
         graph.newEdge(srcV, tgtV, label, labelWithDir.dir, propsWithTs = propsWithTs)
       case None =>
-        val src = InnerVal.convertVersion(srcVertex.innerId, srcColumn.columnType, label.schemaVersion)
+        val src = srcVertex.innerId
         val srcVId = SourceVertexId(srcColumn, src)
         val srcV = graph.newVertex(srcVId)
 

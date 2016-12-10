@@ -522,7 +522,7 @@ class AsynchbaseStorage(override val graph: S2Graph,
                    version: String): Option[S2Vertex] = {
 
       if (kvs.isEmpty) None
-      else vertexDeserializer.fromKeyValues(None, kvs, version, None)
+      else vertexDeserializer.fromKeyValues(kvs, None)
 //        .map(S2Vertex(graph, _))
     }
 

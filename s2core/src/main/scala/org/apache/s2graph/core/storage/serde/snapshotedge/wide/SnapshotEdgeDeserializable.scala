@@ -34,21 +34,20 @@ class SnapshotEdgeDeserializable(graph: S2Graph) extends Deserializable[Snapshot
     (statusCode.toByte, op.toByte)
   }
 
-  override def fromKeyValuesInner[T: CanSKeyValue](checkLabel: Option[Label],
-                                                   _kvs: Seq[T],
-                                                   version: String,
+  override def fromKeyValuesInner[T: CanSKeyValue](_kvs: Seq[T],
                                                    cacheElementOpt: Option[SnapshotEdge]): SnapshotEdge = {
     val kvs = _kvs.map { kv => implicitly[CanSKeyValue[T]].toSKeyValue(kv) }
     assert(kvs.size == 1)
 
     val kv = kvs.head
-    val label = checkLabel.get
-    val schemaVer = label.schemaVersion
     val cellVersion = kv.timestamp
 
     val (srcVertexId, labelWithDir, _, _, _) = cacheElementOpt.map { e =>
       (e.srcVertex.id, e.labelWithDir, LabelIndex.DefaultSeq, true, 0)
-    }.getOrElse(parseRow(kv, schemaVer))
+    }.getOrElse(parseRow(kv))
+
+    val label = Label.findById(labelWithDir.labelId)
+    val schemaVer = label.schemaVersion
 
     val (tgtVertexId, props, op, ts, statusCode, _pendingEdgeOpt, tsInnerVal) = {
       val (tgtVertexId, _) = TargetVertexId.fromBytes(kv.qualifier, 0, kv.qualifier.length, schemaVer)

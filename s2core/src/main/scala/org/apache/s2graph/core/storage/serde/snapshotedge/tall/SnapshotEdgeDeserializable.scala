@@ -34,19 +34,16 @@ class SnapshotEdgeDeserializable(graph: S2Graph) extends Deserializable[Snapshot
     (statusCode.toByte, op.toByte)
   }
 
-  override def fromKeyValuesInner[T: CanSKeyValue](checkLabel: Option[Label],
-                                                   _kvs: Seq[T],
-                                                   version: String,
+  override def fromKeyValuesInner[T: CanSKeyValue](_kvs: Seq[T],
                                                    cacheElementOpt: Option[SnapshotEdge]): SnapshotEdge = {
     val kvs = _kvs.map { kv => implicitly[CanSKeyValue[T]].toSKeyValue(kv) }
     assert(kvs.size == 1)
 
     val kv = kvs.head
-    val label = checkLabel.get
-    val schemaVer = label.schemaVersion
     val cellVersion = kv.timestamp
+
     /** rowKey */
-    def parseRowV3(kv: SKeyValue, version: String) = {
+    def parseRowV3(kv: SKeyValue, version: String = HBaseType.DEFAULT_VERSION) = {
       var pos = 0
       val (srcIdAndTgtId, srcIdAndTgtIdLen) = SourceAndTargetVertexIdPair.fromBytes(kv.row, pos, kv.row.length, version)
       pos += srcIdAndTgtIdLen
@@ -60,8 +57,10 @@ class SnapshotEdgeDeserializable(graph: S2Graph) extends Deserializable[Snapshot
     }
     val (srcInnerId, tgtInnerId, labelWithDir, _, _, _) = cacheElementOpt.map { e =>
       (e.srcVertex.innerId, e.tgtVertex.innerId, e.labelWithDir, LabelIndex.DefaultSeq, true, 0)
-    }.getOrElse(parseRowV3(kv, schemaVer))
+    }.getOrElse(parseRowV3(kv))
 
+    val label = Label.findById(labelWithDir.labelId)
+    val schemaVer = label.schemaVersion
     val srcVertexId = SourceVertexId(ServiceColumn.Default, srcInnerId)
     val tgtVertexId = SourceVertexId(ServiceColumn.Default, tgtInnerId)
 

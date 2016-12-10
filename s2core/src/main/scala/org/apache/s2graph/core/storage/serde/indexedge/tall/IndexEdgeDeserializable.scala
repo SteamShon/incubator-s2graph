@@ -38,9 +38,7 @@ class IndexEdgeDeserializable(graph: S2Graph,
    type QualifierRaw = (Array[(LabelMeta, InnerValLike)], VertexId, Byte, Boolean, Int)
    type ValueRaw = (Array[(LabelMeta, InnerValLike)], Int)
 
-   override def fromKeyValuesInner[T: CanSKeyValue](checkLabel: Option[Label],
-                                                    _kvs: Seq[T],
-                                                    schemaVer: String,
+   override def fromKeyValuesInner[T: CanSKeyValue](_kvs: Seq[T],
                                                     cacheElementOpt: Option[S2Edge]): S2Edge = {
 
      assert(_kvs.size == 1)
@@ -52,15 +50,15 @@ class IndexEdgeDeserializable(graph: S2Graph,
      val version = kv.timestamp
      //    logger.debug(s"[Des]: ${kv.row.toList}, ${kv.qualifier.toList}, ${kv.value.toList}")
      var pos = 0
-     val (srcVertexId, srcIdLen) = SourceVertexId.fromBytes(kv.row, pos, kv.row.length, schemaVer)
+     val (srcVertexId, srcIdLen) = SourceVertexId.fromBytes(kv.row, pos, kv.row.length, HBaseType.DEFAULT_VERSION)
      pos += srcIdLen
      val labelWithDir = LabelWithDirection(Bytes.toInt(kv.row, pos, 4))
      pos += 4
      val (labelIdxSeq, isInverted) = bytesToLabelIndexSeqWithIsInverted(kv.row, pos)
      pos += 1
 
-     val label = checkLabel.getOrElse(Label.findById(labelWithDir.labelId))
-
+     val label = Label.findById(labelWithDir.labelId)
+     val schemaVer = label.schemaVersion
      val srcVertex = graph.newVertex(srcVertexId, version)
      //TODO:
      val edge = graph.newEdge(srcVertex, null,

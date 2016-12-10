@@ -1120,8 +1120,8 @@ class S2Graph(_config: Config)(implicit val ec: ExecutionContext) extends Graph 
              operation: String = "insert"): S2Edge = {
     val label = Label.findByName(labelName).getOrElse(throw new LabelNotExistException(labelName))
 
-    val srcVertexIdInnerVal = toInnerVal(srcId.toString, label.srcColumn.columnType, label.schemaVersion)
-    val tgtVertexIdInnerVal = toInnerVal(tgtId.toString, label.tgtColumn.columnType, label.schemaVersion)
+    val srcVertexIdInnerVal = toInnerVal(srcId, label.srcColumn.columnType, label.schemaVersion)
+    val tgtVertexIdInnerVal = toInnerVal(tgtId, label.tgtColumn.columnType, label.schemaVersion)
 
     val srcVertex = newVertex(SourceVertexId(label.srcColumn, srcVertexIdInnerVal), System.currentTimeMillis())
     val tgtVertex = newVertex(TargetVertexId(label.tgtColumn, tgtVertexIdInnerVal), System.currentTimeMillis())
@@ -1145,7 +1145,7 @@ class S2Graph(_config: Config)(implicit val ec: ExecutionContext) extends Graph 
     val column = ServiceColumn.find(service.id.get, columnName).getOrElse(throw new RuntimeException(s"$columnName is not found."))
     val op = GraphUtil.toOp(operation).getOrElse(throw new RuntimeException(s"$operation is not supported."))
 
-    val srcVertexId = VertexId(column, toInnerVal(id.toString, column.columnType, column.schemaVersion))
+    val srcVertexId = VertexId(column, toInnerVal(id, column.columnType, column.schemaVersion))
     val propsInner = column.propsToInnerVals(props) ++
       Map(ColumnMeta.timestamp -> InnerVal.withLong(ts, column.schemaVersion))
 

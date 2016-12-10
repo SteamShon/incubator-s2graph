@@ -65,9 +65,7 @@ class IndexEdgeDeserializable(graph: S2Graph,
      (idxPropsRaw, tgtVertexIdRaw, op, tgtVertexIdLen != 0, qualifierLen)
    }
 
-   override def fromKeyValuesInner[T: CanSKeyValue](checkLabel: Option[Label],
-                                                    _kvs: Seq[T],
-                                                    schemaVer: String,
+   override def fromKeyValuesInner[T: CanSKeyValue](_kvs: Seq[T],
                                                     cacheElementOpt: Option[S2Edge]): S2Edge = {
      assert(_kvs.size == 1)
 
@@ -79,9 +77,10 @@ class IndexEdgeDeserializable(graph: S2Graph,
 //     val (srcVertexId, labelWithDir, labelIdxSeq, _, _) = cacheElementOpt.map { e =>
 //       (e.srcVertex.id, e.labelWithDir, e.labelIndexSeq, false, 0)
 //     }.getOrElse(parseRow(kv, schemaVer))
-     val (srcVertexId, labelWithDir, labelIdxSeq, _, _) = parseRow(kv, schemaVer)
+     val (srcVertexId, labelWithDir, labelIdxSeq, _, _) = parseRow(kv, HBaseType.DEFAULT_VERSION)
 
-     val label = checkLabel.getOrElse(Label.findById(labelWithDir.labelId))
+     val label = Label.findById(labelWithDir.labelId)
+     val schemaVer = label.schemaVersion
      val srcVertex = graph.newVertex(srcVertexId, version)
      //TODO:
      val edge = graph.newEdge(srcVertex, null,

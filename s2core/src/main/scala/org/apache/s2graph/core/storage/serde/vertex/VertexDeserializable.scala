@@ -22,21 +22,20 @@ package org.apache.s2graph.core.storage.serde.vertex
 import org.apache.s2graph.core.mysqls.{ColumnMeta, Label}
 import org.apache.s2graph.core.storage.StorageDeserializable._
 import org.apache.s2graph.core.storage.{CanSKeyValue, Deserializable}
-import org.apache.s2graph.core.types.{InnerVal, InnerValLike, VertexId}
+import org.apache.s2graph.core.types.{HBaseType, InnerVal, InnerValLike, VertexId}
 import org.apache.s2graph.core.{S2Graph, QueryParam, S2Vertex}
 
 import scala.collection.mutable.ListBuffer
 
 class VertexDeserializable(graph: S2Graph,
                            bytesToInt: (Array[Byte], Int) => Int = bytesToInt) extends Deserializable[S2Vertex] {
-  def fromKeyValuesInner[T: CanSKeyValue](checkLabel: Option[Label],
-                                          _kvs: Seq[T],
-                                          version: String,
+  def fromKeyValuesInner[T: CanSKeyValue](_kvs: Seq[T],
                                           cacheElementOpt: Option[S2Vertex]): S2Vertex = {
 
     val kvs = _kvs.map { kv => implicitly[CanSKeyValue[T]].toSKeyValue(kv) }
 
     val kv = kvs.head
+    val version = HBaseType.DEFAULT_VERSION
     val (vertexId, _) = VertexId.fromBytes(kv.row, 0, kv.row.length, version)
 
     var maxTs = Long.MinValue
