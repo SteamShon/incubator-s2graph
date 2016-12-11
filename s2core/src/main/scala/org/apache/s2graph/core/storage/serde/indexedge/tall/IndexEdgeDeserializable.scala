@@ -20,13 +20,11 @@
 package org.apache.s2graph.core.storage.serde.indexedge.tall
 
 import org.apache.hadoop.hbase.util.Bytes
-import org.apache.s2graph.core.mysqls.{ServiceColumn, Label, LabelMeta}
+import org.apache.s2graph.core._
+import org.apache.s2graph.core.mysqls.{Label, LabelMeta, ServiceColumn}
 import org.apache.s2graph.core.storage.StorageDeserializable._
 import org.apache.s2graph.core.storage.{CanSKeyValue, Deserializable, StorageDeserializable}
 import org.apache.s2graph.core.types._
-import org.apache.s2graph.core.utils.logger
-import org.apache.s2graph.core._
-import scala.collection.immutable
 
 object IndexEdgeDeserializable{
   def getNewInstance(graph: S2Graph) = new IndexEdgeDeserializable(graph)
@@ -67,8 +65,10 @@ class IndexEdgeDeserializable(graph: S2Graph,
          val edge = graph.newEdge(srcVertex, null,
            label, labelWithDir.dir, GraphUtil.defaultOpByte, version, S2Edge.EmptyState)
          var tsVal = version
+         val isTallSchema = label.schemaVersion == HBaseType.VERSION4
+         val isDegree = if (isTallSchema) pos == kv.row.length else kv.qualifier.isEmpty
 
-         if (pos == kv.row.length) {
+         if (isDegree) {
            // degree
            //      val degreeVal = Bytes.toLong(kv.value)
            val degreeVal = bytesToLongFunc(kv.value, 0)
@@ -81,16 +81,34 @@ class IndexEdgeDeserializable(graph: S2Graph,
            edge.tsInnerValOpt = Option(InnerVal.withLong(tsVal, schemaVer))
          } else {
            // not degree edge
-           val (idxPropsRaw, endAt) = bytesToProps(kv.row, pos, schemaVer)
+           val (idxPropsRaw, endAt) =
+             if (isTallSchema) bytesToProps(kv.row, pos, schemaVer)
+             else {
+               bytesToProps(kv.qualifier, 0, schemaVer)
+             }
            pos = endAt
 
-
-           val (tgtVertexIdRaw, tgtVertexIdLen) = if (endAt == kv.row.length - 1) {
-             (HBaseType.defaultTgtVertexId, 0)
+           val (tgtVertexIdRaw, tgtVertexIdLen) = if (isTallSchema) {
+             if (endAt == kv.row.length - 1) {
+               (HBaseType.defaultTgtVertexId, 0)
+             } else {
+               TargetVertexId.fromBytes(kv.row, endAt, kv.row.length - 1, schemaVer)
+             }
            } else {
-             TargetVertexId.fromBytes(kv.row, endAt, kv.row.length - 1, schemaVer)
+             if (endAt == kv.qualifier.length) {
+               (HBaseType.defaultTgtVertexId, 0)
+             } else {
+               TargetVertexId.fromBytes(kv.qualifier, endAt, kv.qualifier.length, schemaVer)
+             }
            }
-           val op = kv.row(kv.row.length-1)
+           pos += tgtVertexIdLen
+
+           val op =
+             if (isTallSchema) kv.row(kv.row.length - 1)
+             else {
+               if (kv.qualifier.length == pos) GraphUtil.defaultOpByte
+               else kv.qualifier(kv.qualifier.length - 1)
+             }
 
            val index = label.indicesMap.getOrElse(labelIdxSeq, throw new RuntimeException(s"invalid index seq: ${label.id.get}, ${labelIdxSeq}"))
            /** process indexProps */
@@ -128,7 +146,7 @@ class IndexEdgeDeserializable(graph: S2Graph,
                TargetVertexId(ServiceColumn.Default, vId.innerVal)
              } else tgtVertexIdRaw
 
-
+           edge.property(LabelMeta.timestamp.name, tsVal, version)
            edge.tgtVertex = graph.newVertex(tgtVertexId, version)
            edge.op = op
            edge.tsInnerValOpt = Option(InnerVal.withLong(tsVal, schemaVer))

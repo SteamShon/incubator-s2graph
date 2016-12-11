@@ -126,8 +126,8 @@ abstract class Storage[Q, R](val graph: S2Graph,
   /** create deserializer that can parse stored CanSKeyValue into indexEdge. */
   val indexEdgeDeserializers: Map[String, Deserializable[S2Edge]] = Map(
 //    VERSION1 -> new IndexEdgeDeserializable(graph),
-    VERSION2 -> new IndexEdgeDeserializable(graph),
-    VERSION3 -> new IndexEdgeDeserializable(graph),
+    VERSION2 -> new serde.indexedge.tall.IndexEdgeDeserializable(graph),
+    VERSION3 -> new serde.indexedge.tall.IndexEdgeDeserializable(graph),
     VERSION4 -> new serde.indexedge.tall.IndexEdgeDeserializable(graph)
   )
 
