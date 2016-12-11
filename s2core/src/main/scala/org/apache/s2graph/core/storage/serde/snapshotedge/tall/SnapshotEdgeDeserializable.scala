@@ -23,7 +23,7 @@ import org.apache.hadoop.hbase.util.Bytes
 import org.apache.s2graph.core.mysqls.{ServiceColumn, Label, LabelIndex, LabelMeta}
 import org.apache.s2graph.core.storage.StorageDeserializable._
 import org.apache.s2graph.core.storage.{CanSKeyValue, Deserializable, SKeyValue, StorageDeserializable}
-import org.apache.s2graph.core.types.{HBaseType, LabelWithDirection, SourceAndTargetVertexIdPair, SourceVertexId}
+import org.apache.s2graph.core.types._
 import org.apache.s2graph.core._
 
 class SnapshotEdgeDeserializable(graph: S2Graph) extends Deserializable[SnapshotEdge] {
@@ -43,8 +43,18 @@ class SnapshotEdgeDeserializable(graph: S2Graph) extends Deserializable[Snapshot
       val kv = kvs.head
       val version = kv.timestamp
       var pos = 0
-      val (srcIdAndTgtId, srcIdAndTgtIdLen) = SourceAndTargetVertexIdPair.fromBytes(kv.row, pos, kv.row.length, HBaseType.DEFAULT_VERSION)
-      pos += srcIdAndTgtIdLen
+      val (srcVertexId, srcIdLen) = SourceVertexId.fromBytes(kv.row, pos, kv.row.length, HBaseType.DEFAULT_VERSION)
+      pos += srcIdLen
+
+      val isTallSchema = pos + 5 != kv.row.length
+      var tgtVertexId = TargetVertexId(ServiceColumn.Default, srcVertexId.innerId)
+
+      if (isTallSchema) {
+        val (tgtId, tgtBytesLen) = InnerVal.fromBytes(kv.row, pos, kv.row.length, HBaseType.DEFAULT_VERSION)
+        tgtVertexId = TargetVertexId(ServiceColumn.Default, tgtId)
+        pos += tgtBytesLen
+      }
+
       val labelWithDir = LabelWithDirection(Bytes.toInt(kv.row, pos, 4))
       pos += 4
       val (labelIdxSeq, isInverted) = bytesToLabelIndexSeqWithIsInverted(kv.row, pos)
@@ -54,8 +64,8 @@ class SnapshotEdgeDeserializable(graph: S2Graph) extends Deserializable[Snapshot
       else {
         val label = Label.findById(labelWithDir.labelId)
         val schemaVer = label.schemaVersion
-        val srcVertexId = SourceVertexId(ServiceColumn.Default, srcIdAndTgtId.srcInnerId)
-        val tgtVertexId = SourceVertexId(ServiceColumn.Default, srcIdAndTgtId.tgtInnerId)
+//        val srcVertexId = SourceVertexId(ServiceColumn.Default, srcIdAndTgtId.srcInnerId)
+//        val tgtVertexId = SourceVertexId(ServiceColumn.Default, tgtId.tgtInnerId)
 
         var pos = 0
         val (statusCode, op) = statusCodeWithOp(kv.value(pos))

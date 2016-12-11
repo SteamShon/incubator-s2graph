@@ -124,15 +124,9 @@ abstract class Storage[Q, R](val graph: S2Graph,
     snapshotEdgeDeserializers.get(schemaVer).getOrElse(throw new RuntimeException(s"not supported version: ${schemaVer}"))
 
   /** create deserializer that can parse stored CanSKeyValue into indexEdge. */
-  val indexEdgeDeserializers: Map[String, Deserializable[S2Edge]] = Map(
-//    VERSION1 -> new IndexEdgeDeserializable(graph),
-    VERSION2 -> new serde.indexedge.tall.IndexEdgeDeserializable(graph),
-    VERSION3 -> new serde.indexedge.tall.IndexEdgeDeserializable(graph),
-    VERSION4 -> new serde.indexedge.tall.IndexEdgeDeserializable(graph)
-  )
+  val indexEdgeDeserializer: Deserializable[S2Edge] = new serde.indexedge.tall.IndexEdgeDeserializable(graph)
 
-  def indexEdgeDeserializer(schemaVer: String) =
-    indexEdgeDeserializers.get(schemaVer).getOrElse(throw new RuntimeException(s"not supported version: ${schemaVer}"))
+  def indexEdgeDeserializer(schemaVer: String) = new serde.indexedge.tall.IndexEdgeDeserializable(graph)
 
   /** create deserializer that can parser stored CanSKeyValue into vertex. */
   val vertexDeserializer: Deserializable[S2Vertex] = new VertexDeserializable(graph)
