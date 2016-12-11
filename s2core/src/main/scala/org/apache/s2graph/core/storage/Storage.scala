@@ -114,14 +114,9 @@ abstract class Storage[Q, R](val graph: S2Graph,
    * then that storage implementation is responsible to provide implicit type conversion method on CanSKeyValue.
    * */
 
-  val snapshotEdgeDeserializers: Map[String, Deserializable[SnapshotEdge]] = Map(
-//    VERSION1 -> new SnapshotEdgeDeserializable(graph),
-    VERSION2 -> new SnapshotEdgeDeserializable(graph),
-    VERSION3 -> new serde.snapshotedge.tall.SnapshotEdgeDeserializable(graph),
-    VERSION4 -> new serde.snapshotedge.tall.SnapshotEdgeDeserializable(graph)
-  )
-  def snapshotEdgeDeserializer(schemaVer: String) =
-    snapshotEdgeDeserializers.get(schemaVer).getOrElse(throw new RuntimeException(s"not supported version: ${schemaVer}"))
+  val snapshotEdgeDeserializer: Deserializable[SnapshotEdge] = new serde.snapshotedge.tall.SnapshotEdgeDeserializable(graph)
+
+  def snapshotEdgeDeserializer(schemaVer: String): Deserializable[SnapshotEdge] = snapshotEdgeDeserializer
 
   /** create deserializer that can parse stored CanSKeyValue into indexEdge. */
   val indexEdgeDeserializer: Deserializable[S2Edge] = new serde.indexedge.tall.IndexEdgeDeserializable(graph)
