@@ -242,6 +242,10 @@ abstract class Storage[Q, R](val graph: S2Graph,
   def flush(): Unit = {
   }
 
+  def fetchEdgesAll(): Future[Seq[S2Edge]]
+
+  def fetchVerticesAll(): Future[Seq[S2Vertex]]
+
   /**
    * create table on storage.
    * if storage implementation does not support namespace or table, then there is nothing to be done
