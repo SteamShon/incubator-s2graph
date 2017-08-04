@@ -252,6 +252,12 @@ object AdminController extends Controller {
   /**
    * delete
    */
+  def deleteService(serviceName: String) = Action { request =>
+    val deleteServiceTry = deleteServiceInner(serviceName)
+    tryResponse(deleteServiceTry)(serviceName => serviceName + " is deleted")
+  }
+
+  def deleteServiceInner(serviceName: String) = Management.deleteService(serviceName)
 
   /**
    * delete label

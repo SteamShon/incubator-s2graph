@@ -65,11 +65,6 @@ object Management {
     Service.findByName(serviceName, useCache = false)
   }
 
-  def deleteService(serviceName: String) = {
-    Service.findByName(serviceName).foreach { service =>
-      //      service.deleteAll()
-    }
-  }
 
   def updateHTable(labelName: String, newHTableName: String): Try[Int] = Try {
     val targetLabel = Label.findByName(labelName).getOrElse(throw new LabelNotExistException(s"Target label $labelName does not exist."))
@@ -117,12 +112,30 @@ object Management {
     Label.findByName(labelName, useCache = useCache)
   }
 
+  def deleteService(serviceName: String) = {
+    Model withTx { implicit session =>
+      Service.findByName(serviceName, useCache = false).foreach { service =>
+        Service.deleteAll(service)
+      }
+      serviceName
+    }
+  }
+
   def deleteLabel(labelName: String) = {
     Model withTx { implicit session =>
       Label.findByName(labelName, useCache = false).foreach { label =>
         Label.deleteAll(label)
       }
       labelName
+    }
+  }
+
+  def markDeletedService(serviceName: String) = {
+    Model withTx { implicit session =>
+      Service.findByName(serviceName, useCache = false).foreach { service =>
+        Service.markDeleted(service)
+      }
+      serviceName
     }
   }
 

@@ -19,7 +19,7 @@
 
 package org.apache.s2graph.core.mysqls
 
-import java.util.UUID
+import java.util.{Calendar, UUID}
 
 import com.typesafe.config.Config
 import org.apache.s2graph.core.utils.logger
@@ -59,6 +59,33 @@ object Service extends Model[Service] {
     val accessToken = UUID.randomUUID().toString()
     sql"""insert into services(service_name, access_token, cluster, hbase_table_name, pre_split_size, hbase_table_ttl)
     values(${serviceName}, ${accessToken}, ${cluster}, ${hTableName}, ${preSplitSize}, ${hTableTTL})""".execute.apply()
+  }
+
+  def markDeleted(service: Service)(implicit session: DBSession = AutoSession) = {
+
+    logger.info(s"mark deleted service: $service")
+    val oldName = service.serviceName
+    val now = Calendar.getInstance().getTime
+    val newName = s"deleted_${now.getTime}_"+ service.serviceName
+    val cnt = sql"""update services set service_name = ${newName}, deleted_at = ${now} where id = ${service.id.get}""".update.apply()
+    val cacheKeys = List(s"id=${service.id}", s"serviceName=${oldName}")
+    cacheKeys.foreach { key =>
+      expireCache(key)
+      expireCaches(key)
+    }
+    cnt
+  }
+
+  def deleteAll(service: Service)(implicit session: DBSession) = {
+    val id = service.id
+    ServiceColumn.findAll(service).foreach { serviceColumn =>
+      ColumnMeta.findAllByColumn(serviceColumn.id.get, useCache = false).foreach { columnMeta =>
+        ColumnMeta.delete(columnMeta.id.get)
+      }
+
+      ServiceColumn.delete(serviceColumn.id.get)
+    }
+    Service.delete(id.get)
   }
 
   def delete(id: Int)(implicit session: DBSession = AutoSession) = {

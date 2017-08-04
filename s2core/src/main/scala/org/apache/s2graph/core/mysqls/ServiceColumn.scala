@@ -82,6 +82,20 @@ object ServiceColumn extends Model[ServiceColumn] {
         find(serviceId, columnName).get
     }
   }
+
+  def findAll(service: Service)(implicit session: DBSession = AutoSession) = {
+    val ls = sql"""select * from service_columns where service_id = ${service.id.get}""".map { rs => ServiceColumn.valueOf(rs) }.list.apply
+    putsToCache(ls.map { x =>
+      var cacheKey = s"id=${x.id.get}"
+      (cacheKey -> x)
+    })
+    putsToCache(ls.map { x =>
+      var cacheKey = s"serviceId=${x.serviceId}:columnName=${x.columnName}"
+      (cacheKey -> x)
+    })
+    ls
+  }
+
   def findAll()(implicit session: DBSession = AutoSession) = {
     val ls = sql"""select * from service_columns""".map { rs => ServiceColumn.valueOf(rs) }.list.apply
     putsToCache(ls.map { x =>

@@ -77,6 +77,7 @@ POST        /graphs/getVertices                                           org.ap
 
 #### ADMIN
 POST        /graphs/createService                                         org.apache.s2graph.rest.play.controllers.AdminController.createService()
+PUT         /graphs/deleteServiceReally/:serviceName                      org.apache.s2graph.rest.play.controllers.AdminController.deleteService(serviceName)
 GET         /graphs/getService/:serviceName                               org.apache.s2graph.rest.play.controllers.AdminController.getService(serviceName)
 GET         /graphs/getLabels/:serviceName                                org.apache.s2graph.rest.play.controllers.AdminController.getLabels(serviceName)
 POST        /graphs/createLabel                                           org.apache.s2graph.rest.play.controllers.AdminController.createLabel()
