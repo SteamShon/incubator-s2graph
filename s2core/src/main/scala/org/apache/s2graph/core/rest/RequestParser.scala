@@ -359,7 +359,7 @@ class RequestParser(graph: S2GraphLike) {
       idJson = (value \ "id").asOpt[JsValue].map(Seq(_)).getOrElse(Nil)
       idsJson = (value \ "ids").asOpt[Seq[JsValue]].getOrElse(Nil)
       id <- (idJson ++ idsJson).flatMap(jsValueToAny(_).toSeq).distinct
-    } yield graph.elementBuilder.newVertexId(serviceName)(columnName)(id)
+    } yield graph.elementBuilder.newVertexId(serviceName)(columnName)(id.toString)
   }
 
   def toQuery(jsValue: JsValue, impIdOpt: Option[String]): Query = {
