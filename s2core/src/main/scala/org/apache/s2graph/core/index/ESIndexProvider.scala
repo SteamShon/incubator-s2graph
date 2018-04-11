@@ -43,8 +43,6 @@ class ESIndexProvider(config: Config)(implicit ec: ExecutionContext) extends Ind
 
   import scala.collection.mutable
 
-  implicit val executor = ec
-
   val esClientUri = Try(config.getString("es.index.provider.client.uri")).getOrElse("localhost")
   val client = HttpClient(ElasticsearchClientUri(esClientUri, 9200))
 

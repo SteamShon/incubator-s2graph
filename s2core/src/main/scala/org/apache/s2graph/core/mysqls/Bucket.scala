@@ -19,16 +19,59 @@
 
 package org.apache.s2graph.core.mysqls
 
+import play.api.libs.json.{JsValue, Json}
 import scalikejdbc._
 
 import scala.util.Try
 
-object Bucket extends Model[Bucket] {
+object Bucket extends SQLSyntaxSupport[Bucket] {
+  import Model._
+  val className = Bucket.getClass.getSimpleName
 
   val rangeDelimiter = "~"
   val INVALID_BUCKET_EXCEPTION = new RuntimeException("invalid bucket.")
+  val InActiveModulars = Set("0~0")
 
-  def apply(rs: WrappedResultSet): Bucket = {
+  def fromJson(jsValue: JsValue): Bucket = {
+    val idOpt = (jsValue \ "id").asOpt[Int]
+    val experimentId = (jsValue \ "experiment_id").as[Int]
+    val modular = (jsValue \ "modular").as[String]
+    val httpVerb = (jsValue \ "http_verb").asOpt[String].getOrElse("POST")
+    val apiPath = (jsValue \ "api_path").asOpt[String].getOrElse("")
+    val requestBody = (jsValue \ "request_body").asOpt[String].getOrElse("{}")
+    val timeout = (jsValue \ "timeout").asOpt[Int].getOrElse(1000)
+    val impressionId = (jsValue \ "impression_id").as[String]
+    val isGraphQuery = (jsValue \ "is_graph_query").asOpt[Boolean].getOrElse(true)
+    val isEmpty = (jsValue \ "is_empty").asOpt[Boolean].getOrElse(false)
+
+    (idOpt, findByImpressionId(impressionId)) match {
+      case (Some(id), Some(bucket)) => // update
+        update(id, experimentId, modular, httpVerb, apiPath, requestBody, timeout, impressionId, isGraphQuery, isEmpty).get
+//      case (Some(id), None) => // not possible
+      case (None, Some(bucket)) => // impression id is taken by others.
+        throw new RuntimeException(s"$impressionId is taken by ${bucket.toJson}")
+      case (None, None) => // insert
+        insert(experimentId, modular, httpVerb, apiPath, requestBody, timeout, impressionId, isGraphQuery, isEmpty).get
+    }
+  }
+
+  def upsert(id: Int,
+             experimentId: Int,
+             modular: String,
+             httpVerb: String,
+             apiPath: String,
+             requestBody: String,
+             timeout: Int,
+             impressionId: String,
+             isGraphQuery: Boolean,
+             isEmpty: Boolean)(implicit session: DBSession = AutoSession): Bucket = {
+    findByImpressionId(impressionId) match {
+      case Some(b) => update(b.id.get, experimentId, modular, httpVerb, apiPath, requestBody, timeout, impressionId, isGraphQuery, isEmpty).get
+      case None => insert(experimentId, modular, httpVerb, apiPath, requestBody, timeout, impressionId, isGraphQuery, isEmpty).get
+    }
+  }
+
+  def valueOf(rs: WrappedResultSet): Bucket = {
     Bucket(rs.intOpt("id"),
       rs.int("experiment_id"),
       rs.string("modular"),
@@ -42,10 +85,11 @@ object Bucket extends Model[Bucket] {
   }
 
   def finds(experimentId: Int)(implicit session: DBSession = AutoSession): List[Bucket] = {
-    val cacheKey = "experimentId=" + experimentId
-    withCaches(cacheKey) {
+    val cacheKey = className + "experimentId=" + experimentId
+
+    withCaches(cacheKey, broadcast = false) {
       sql"""select * from buckets where experiment_id = $experimentId"""
-        .map { rs => Bucket(rs) }.list().apply()
+        .map { rs => Bucket.valueOf(rs) }.list().apply()
     }
   }
 
@@ -56,19 +100,46 @@ object Bucket extends Model[Bucket] {
   }
 
   def findByImpressionId(impressionId: String, useCache: Boolean = true)(implicit session: DBSession = AutoSession): Option[Bucket] = {
-    val cacheKey = "impressionId=" + impressionId
-    val sql = sql"""select * from buckets where impression_id=$impressionId"""
-      .map { rs => Bucket(rs)}
-    if (useCache) {
-      withCache(cacheKey) {
-        sql.single().apply()
-      }
-    } else {
-      sql.single().apply()
+    val cacheKey = className + "impressionId=" + impressionId
+
+    lazy val sql = sql"""select * from buckets where impression_id=$impressionId"""
+      .map { rs => Bucket.valueOf(rs)}.single().apply()
+
+    if (useCache) withCache(cacheKey)(sql)
+    else sql
+
+  }
+
+  def findById(id: Int, useCache: Boolean = true)(implicit session: DBSession = AutoSession): Bucket = {
+    val cacheKey = className + "id=" + id
+    lazy val sql = sql"""select * from buckets where id = $id""".map { rs => Bucket.valueOf(rs)}.single().apply()
+    if (useCache) withCache(cacheKey, false) { sql }.get
+    else sql.get
+  }
+
+  def update(id: Int,
+             experimentId: Int,
+             modular: String,
+             httpVerb: String,
+             apiPath: String,
+             requestBody: String,
+             timeout: Int,
+             impressionId: String,
+             isGraphQuery: Boolean,
+             isEmpty: Boolean)(implicit session: DBSession = AutoSession): Try[Bucket] = {
+    Try {
+      sql"""
+            UPDATE buckets set experiment_id = $experimentId, modular = $modular, http_verb = $httpVerb, api_path = $apiPath,
+            request_body = $requestBody, timeout = $timeout, impression_id = $impressionId,
+            is_graph_query = $isGraphQuery, is_empty = $isEmpty WHERE id = $id
+        """
+        .update().apply()
+    }.map { cnt =>
+      findById(id)
     }
   }
 
-  def insert(experiment: Experiment, modular: String, httpVerb: String, apiPath: String,
+  def insert(experimentId: Int, modular: String, httpVerb: String, apiPath: String,
              requestBody: String, timeout: Int, impressionId: String,
              isGraphQuery: Boolean, isEmpty: Boolean)
             (implicit session: DBSession = AutoSession): Try[Bucket] = {
@@ -76,12 +147,12 @@ object Bucket extends Model[Bucket] {
       sql"""
             INSERT INTO buckets(experiment_id, modular, http_verb, api_path, request_body, timeout, impression_id,
              is_graph_query, is_empty)
-            VALUES (${experiment.id.get}, $modular, $httpVerb, $apiPath, $requestBody, $timeout, $impressionId,
+            VALUES (${experimentId}, $modular, $httpVerb, $apiPath, $requestBody, $timeout, $impressionId,
              $isGraphQuery, $isEmpty)
         """
         .updateAndReturnGeneratedKey().apply()
     }.map { newId =>
-      Bucket(Some(newId.toInt), experiment.id.get, modular, httpVerb, apiPath, requestBody, timeout, impressionId,
+      Bucket(Some(newId.toInt), experimentId, modular, httpVerb, apiPath, requestBody, timeout, impressionId,
         isGraphQuery, isEmpty)
     }
   }
@@ -98,4 +169,9 @@ case class Bucket(id: Option[Int],
   import Bucket._
 
   lazy val rangeOpt = toRange(modular)
+
+  def toJson(): JsValue =
+    Json.obj("id" -> id, "experimentId" -> experimentId, "modular" -> modular, "httpVerb" -> httpVerb,
+      "requestBody" -> requestBody, "isGraphQuery" -> isGraphQuery, "isEmpty" -> isEmpty)
+
 }

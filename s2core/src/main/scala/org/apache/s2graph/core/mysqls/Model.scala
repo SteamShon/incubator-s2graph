@@ -19,12 +19,14 @@
 
 package org.apache.s2graph.core.mysqls
 
+import java.io.File
+import java.net.InetAddress
 import java.util.concurrent.Executors
 import java.util.concurrent.atomic.AtomicLong
 
 import com.typesafe.config.{Config, ConfigFactory}
-import org.apache.s2graph.core.JSONParser
-import org.apache.s2graph.core.utils.{SafeUpdateCache, logger}
+import org.apache.s2graph.core.{ExceptionHandler, JSONParser}
+import org.apache.s2graph.core.utils.{KafkaSync, SafeUpdateCache, logger}
 import play.api.libs.json.{JsObject, JsValue, Json}
 import scalikejdbc._
 
@@ -36,16 +38,18 @@ import scala.util.{Failure, Success, Try}
 object Model {
   var maxSize = 10000
   var ttl = 60
+  var safeUpdateCache: SafeUpdateCache = _
+
   val numOfThread = Runtime.getRuntime.availableProcessors()
   val threadPool = Executors.newFixedThreadPool(numOfThread)
   val ec = ExecutionContext.fromExecutor(threadPool)
-  val useUTF8Encoding = "?useUnicode=true&characterEncoding=utf8"
 
   private val ModelReferenceCount = new AtomicLong(0L)
 
   def apply(config: Config) = {
     maxSize = config.getInt("cache.max.size")
     ttl = config.getInt("cache.ttl.seconds")
+
     Class.forName(config.getString("db.default.driver"))
 
     val settings = ConnectionPoolSettings(
@@ -61,7 +65,8 @@ object Model {
       settings)
 
     checkSchema()
-
+    val synchronizerOpt = initSync(config)
+    safeUpdateCache = new SafeUpdateCache(maxSize, ttl, synchronizerOpt)(ec)
     ModelReferenceCount.incrementAndGet()
   }
 
@@ -91,6 +96,34 @@ object Model {
         }
       case Failure(e) =>
         throw new RuntimeException("Could not list tables in the database", e)
+    }
+  }
+
+  def initSync(config: Config): Option[KafkaSync] = {
+    val useSynchronizer = Try(config.getBoolean("model.sync.use")).getOrElse(false)
+
+    val modelSyncTopic = Try(config.getString("model.sync.topic")).getOrElse(s"${Try(config.getString("phase")).getOrElse("")}-model-sync")
+
+    val brokersOpt = Try(config.getString(ExceptionHandler.mainBrokerKey)).toOption
+
+    logger.info(s"[synchronizer] use: ${useSynchronizer}, topic: ${modelSyncTopic}")
+
+    if (useSynchronizer && brokersOpt.isDefined) {
+
+      val brokers = brokersOpt.get
+      val syncId: String = InetAddress.getLocalHost.getCanonicalHostName.replace(".", "_")
+      val producerConfig = KafkaSync.producerConfig(brokers)
+      val consumerConfig = KafkaSync.consumerConfig(brokers, syncId)
+
+      Option(
+        new KafkaSync(
+          topic = modelSyncTopic,
+          syncId = syncId,
+          producerConfig = producerConfig,
+          consumerConfig = consumerConfig)
+      )
+    } else {
+      None
     }
   }
 
@@ -140,7 +173,8 @@ object Model {
             throw new IllegalStateException(s"Failed to list models", e)
         }
       }
-      clearCache()
+//      clearCache()
+      safeUpdateCache.shutdown()
       ConnectionPool.closeAll()
     }
 
@@ -153,14 +187,14 @@ object Model {
     ColumnMeta.findAll()
   }
 
-  def clearCache() = {
-    Service.expireAll()
-    ServiceColumn.expireAll()
-    Label.expireAll()
-    LabelMeta.expireAll()
-    LabelIndex.expireAll()
-    ColumnMeta.expireAll()
-  }
+//  def clearCache() = {
+//    Service.expireAll()
+//    ServiceColumn.expireAll()
+//    Label.expireAll()
+//    LabelMeta.expireAll()
+//    LabelIndex.expireAll()
+//    ColumnMeta.expireAll()
+//  }
 
   def extraOptions(options: Option[String]): Map[String, JsValue] = options match {
     case None => Map.empty
@@ -181,6 +215,7 @@ object Model {
         val configMap = jsValue.as[JsObject].fieldSet.toMap.map { case (key, value) =>
           key -> JSONParser.jsValueToAny(value).getOrElse(throw new RuntimeException("!!"))
         }
+
         ConfigFactory.parseMap(configMap.asJava)
       }
     } catch {
@@ -189,43 +224,51 @@ object Model {
         None
     }
   }
+
+  private def toMultiKey(key: String): String = key + ".__m__"
+
+  def withCache[T <: AnyRef](key: String, broadcast: Boolean = true)(op: => T) = safeUpdateCache.withCache(key, broadcast)(op)
+
+  def withCaches[T <: AnyRef](key: String, broadcast: Boolean = true)(op: => T) = safeUpdateCache.withCache(toMultiKey(key), broadcast)(op)
+
+  def expireCache(key: String) = safeUpdateCache.invalidate(key)
+
+  def expireCaches(key: String) = safeUpdateCache.invalidate(toMultiKey(key))
+
+  def putsToCacheOption[T <: AnyRef](kvs: List[(String, T)]) = kvs.foreach {
+    case (key, value) => safeUpdateCache.put(key, Option(value))
+  }
+
+  def putsToCaches[T <: AnyRef](kvs: List[(String, T)]) = kvs.foreach {
+    case (key, values) => safeUpdateCache.put(toMultiKey(key), values)
+  }
+
+  def getCacheSize(): Int = safeUpdateCache.asMap().size()
+
+  def getAllCacheData[T <: AnyRef](): (List[(String, T)], List[(String, List[T])]) = {
+    (Nil, Nil)
+  }
+
+  def toFile(file: File): Unit = safeUpdateCache.toFile(file)
+
+  def fromFile(file: File): Unit = safeUpdateCache.fromFile(file)
 }
 
-trait Model[V] extends SQLSyntaxSupport[V] {
-
-  import Model._
-
-  implicit val ec: ExecutionContext = Model.ec
-
-  val cName = this.getClass.getSimpleName()
-  logger.info(s"LocalCache[$cName]: TTL[$ttl], MaxSize[$maxSize]")
-
-  val optionCache = new SafeUpdateCache[Option[V]](cName, maxSize, ttl)
-  val listCache = new SafeUpdateCache[List[V]](cName, maxSize, ttl)
-
-  val withCache = optionCache.withCache _
-
-  val withCaches = listCache.withCache _
-
-  val expireCache = optionCache.invalidate _
-
-  val expireCaches = listCache.invalidate _
-
-  def expireAll() = {
-    listCache.invalidateAll()
-    optionCache.invalidateAll()
+object ModelDump {
+  lazy val init: Unit = {
+    Model.maxSize = Int.MaxValue
+    Model.ttl = 2592000 // 1 month
+    Model.apply(ConfigFactory.load)
+    Model.loadCache()
   }
 
-  def putsToCache(kvs: List[(String, V)]) = kvs.foreach {
-    case (key, value) => optionCache.put(key, Option(value))
+  def saveToFile(file: File) {
+
+    Model.toFile(file)
   }
 
-  def putsToCaches(kvs: List[(String, List[V])]) = kvs.foreach {
-    case (key, values) => listCache.put(key, values)
-  }
-
-  def getAllCacheData() : (List[(String, Option[_])], List[(String, List[_])]) = {
-    (optionCache.getAllData(), listCache.getAllData())
+  def loadFromFile(file: File): Unit = {
+    Model.fromFile(file)
   }
 }
 

@@ -23,7 +23,10 @@ import org.apache.tinkerpop.gremlin.process.traversal.step.util.HasContainer
 import scalikejdbc.{AutoSession, DBSession, WrappedResultSet}
 import scalikejdbc._
 
-object GlobalIndex extends Model[GlobalIndex] {
+object GlobalIndex extends SQLSyntaxSupport[GlobalIndex] {
+  import Model._
+  val className = GlobalIndex.getClass.getSimpleName
+
   val vidField = "_vid_"
   val eidField = "_eid_"
   val labelField = "_label_"
@@ -63,16 +66,15 @@ object GlobalIndex extends Model[GlobalIndex] {
   def findAll(elementType: String, useCache: Boolean = true)(implicit session: DBSession = AutoSession): Seq[GlobalIndex] = {
     lazy val ls = sql"""select * from global_indices where element_type = $elementType""".map { rs => GlobalIndex(rs) }.list.apply
     if (useCache) {
-      listCache.withCache(s"findAll:elementType=$elementType") {
-        putsToCache(ls.map { globalIndex =>
-          val cacheKey = s"elementType=${globalIndex.elementType}:indexName=${globalIndex.indexName}"
-          cacheKey -> globalIndex
-        })
-        ls
-      }
-    } else {
-      ls
+      putsToCacheOption(ls.flatMap { x => Seq(
+        s"elementType=${x.elementType}:indexName=${x.indexName}" -> x
+      )})
+      putsToCaches(List(
+        s"findAll:elementType=$elementType" -> ls
+      ))
     }
+
+    ls
   }
 
   def findGlobalIndex(elementType: String, hasContainers: java.util.List[HasContainer])(implicit session: DBSession = AutoSession): Option[GlobalIndex] = {
