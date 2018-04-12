@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.apache.s2graph.core.mysqls
+package org.apache.s2graph.core.schema
 
 /**
  * Created by shon on 6/3/15.
@@ -31,7 +31,7 @@ import scalikejdbc._
 import scala.util.Try
 
 object LabelMeta extends SQLSyntaxSupport[LabelMeta] {
-  import Model._
+  import Schema._
   val className = LabelMeta.getClass.getSimpleName
   /** dummy sequences */
 

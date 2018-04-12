@@ -17,16 +17,15 @@
  * under the License.
  */
 
-package org.apache.s2graph.core.mysqls
+package org.apache.s2graph.core.schema
 
 import java.io.File
-import java.net.InetAddress
 import java.util.concurrent.Executors
 import java.util.concurrent.atomic.AtomicLong
 
 import com.typesafe.config.{Config, ConfigFactory}
-import org.apache.s2graph.core.{ExceptionHandler, JSONParser}
-import org.apache.s2graph.core.utils.{KafkaSync, SafeUpdateCache, logger}
+import org.apache.s2graph.core.JSONParser
+import org.apache.s2graph.core.utils.{SafeUpdateCache, logger}
 import play.api.libs.json.{JsObject, JsValue, Json}
 import scalikejdbc._
 
@@ -35,7 +34,7 @@ import scala.io.Source
 import scala.language.{higherKinds, implicitConversions}
 import scala.util.{Failure, Success, Try}
 
-object Model {
+object Schema {
   var maxSize = 10000
   var ttl = 60
   var safeUpdateCache: SafeUpdateCache = _
@@ -65,8 +64,7 @@ object Model {
       settings)
 
     checkSchema()
-    val synchronizerOpt = initSync(config)
-    safeUpdateCache = new SafeUpdateCache(maxSize, ttl, synchronizerOpt)(ec)
+    safeUpdateCache = new SafeUpdateCache(maxSize, ttl)(ec)
     ModelReferenceCount.incrementAndGet()
   }
 
@@ -96,34 +94,6 @@ object Model {
         }
       case Failure(e) =>
         throw new RuntimeException("Could not list tables in the database", e)
-    }
-  }
-
-  def initSync(config: Config): Option[KafkaSync] = {
-    val useSynchronizer = Try(config.getBoolean("model.sync.use")).getOrElse(false)
-
-    val modelSyncTopic = Try(config.getString("model.sync.topic")).getOrElse(s"${Try(config.getString("phase")).getOrElse("")}-model-sync")
-
-    val brokersOpt = Try(config.getString(ExceptionHandler.mainBrokerKey)).toOption
-
-    logger.info(s"[synchronizer] use: ${useSynchronizer}, topic: ${modelSyncTopic}")
-
-    if (useSynchronizer && brokersOpt.isDefined) {
-
-      val brokers = brokersOpt.get
-      val syncId: String = InetAddress.getLocalHost.getCanonicalHostName.replace(".", "_")
-      val producerConfig = KafkaSync.producerConfig(brokers)
-      val consumerConfig = KafkaSync.consumerConfig(brokers, syncId)
-
-      Option(
-        new KafkaSync(
-          topic = modelSyncTopic,
-          syncId = syncId,
-          producerConfig = producerConfig,
-          consumerConfig = consumerConfig)
-      )
-    } else {
-      None
     }
   }
 
@@ -256,19 +226,19 @@ object Model {
 
 object ModelDump {
   lazy val init: Unit = {
-    Model.maxSize = Int.MaxValue
-    Model.ttl = 2592000 // 1 month
-    Model.apply(ConfigFactory.load)
-    Model.loadCache()
+    Schema.maxSize = Int.MaxValue
+    Schema.ttl = 2592000 // 1 month
+    Schema.apply(ConfigFactory.load)
+    Schema.loadCache()
   }
 
   def saveToFile(file: File) {
 
-    Model.toFile(file)
+    Schema.toFile(file)
   }
 
   def loadFromFile(file: File): Unit = {
-    Model.fromFile(file)
+    Schema.fromFile(file)
   }
 }
 

@@ -17,16 +17,16 @@
  * under the License.
  */
 
-package org.apache.s2graph.core.mysqls
+package org.apache.s2graph.core.schema
 
 import org.apache.s2graph.core.GraphUtil
-import org.apache.s2graph.core.mysqls.LabelIndex.LabelIndexMutateOption
+import org.apache.s2graph.core.schema.LabelIndex.LabelIndexMutateOption
 import org.apache.s2graph.core.utils.logger
 import play.api.libs.json.{JsObject, JsString, Json}
 import scalikejdbc._
 
 object LabelIndex extends SQLSyntaxSupport[LabelIndex] {
-  import Model._
+  import Schema._
   val className = LabelIndex.getClass.getSimpleName
 
   val DefaultName = "_PK"

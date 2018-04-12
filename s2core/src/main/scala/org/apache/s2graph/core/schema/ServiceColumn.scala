@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.apache.s2graph.core.mysqls
+package org.apache.s2graph.core.schema
 
 import org.apache.s2graph.core.JSONParser
 import org.apache.s2graph.core.JSONParser._
@@ -26,7 +26,7 @@ import play.api.libs.json.Json
 import scalikejdbc._
 
 object ServiceColumn extends SQLSyntaxSupport[ServiceColumn] {
-  import Model._
+  import Schema._
   val className = ServiceColumn.getClass.getSimpleName
 
   val Default = ServiceColumn(Option(0), -1, "default", "string", "v4")

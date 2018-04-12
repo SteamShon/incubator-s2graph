@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.apache.s2graph.core.mysqls
+package org.apache.s2graph.core.schema
 
 import play.api.libs.json.{JsValue, Json}
 import scalikejdbc._
@@ -25,7 +25,7 @@ import scalikejdbc._
 import scala.util.Try
 
 object Bucket extends SQLSyntaxSupport[Bucket] {
-  import Model._
+  import Schema._
   val className = Bucket.getClass.getSimpleName
 
   val rangeDelimiter = "~"

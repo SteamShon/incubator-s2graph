@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.apache.s2graph.core.mysqls
+package org.apache.s2graph.core.schema
 
 import org.apache.s2graph.core.GraphUtil
 import scalikejdbc._
@@ -25,7 +25,7 @@ import scalikejdbc._
 import scala.util.{Try, Random}
 
 object Experiment extends SQLSyntaxSupport[Experiment] {
-  import Model._
+  import Schema._
   val className = Experiment.getClass.getSimpleName
 
   val ImpressionKey = "S2-Impression-Id"

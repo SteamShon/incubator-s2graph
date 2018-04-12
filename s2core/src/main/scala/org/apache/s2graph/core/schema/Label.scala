@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.apache.s2graph.core.mysqls
+package org.apache.s2graph.core.schema
 
 import java.util.Calendar
 
@@ -32,7 +32,7 @@ import play.api.libs.json.{JsArray, JsObject, JsValue, Json}
 import scalikejdbc._
 
 object Label extends SQLSyntaxSupport[Label] {
-  import Model._
+  import Schema._
   val className = Label.getClass.getSimpleName
 
   val maxHBaseTableNames = 2
@@ -383,14 +383,14 @@ case class Label(id: Option[Int], label: String,
       Set.empty[String]
   }
 
-  lazy val extraOptions = Model.extraOptions(options)
+  lazy val extraOptions = Schema.extraOptions(options)
 
   lazy val durability = extraOptions.get("durability").map(_.as[Boolean]).getOrElse(true)
 
   lazy val storageConfigOpt: Option[Config] = toStorageConfig
 
   def toStorageConfig: Option[Config] = {
-    Model.toStorageConfig(extraOptions)
+    Schema.toStorageConfig(extraOptions)
   }
 
   def srcColumnWithDir(dir: Int) = {

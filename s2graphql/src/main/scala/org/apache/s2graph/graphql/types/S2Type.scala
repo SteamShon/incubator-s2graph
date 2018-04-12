@@ -22,7 +22,7 @@ package org.apache.s2graph.graphql.types
 import scala.concurrent._
 import org.apache.s2graph.core.Management.JsonModel.{Index, Prop}
 import org.apache.s2graph.core._
-import org.apache.s2graph.core.mysqls._
+import org.apache.s2graph.core.schema._
 import org.apache.s2graph.graphql.repository.GraphRepository
 import sangria.schema._
 import org.apache.s2graph.graphql.bind.{AstHelper, Unmarshaller}

@@ -26,7 +26,7 @@ import com.sksamuel.elastic4s.http.ElasticDsl._
 import com.sksamuel.elastic4s.http.HttpClient
 import com.typesafe.config.Config
 import org.apache.s2graph.core.io.Conversions
-import org.apache.s2graph.core.mysqls._
+import org.apache.s2graph.core.schema._
 import org.apache.s2graph.core.types.VertexId
 import org.apache.s2graph.core.{EdgeId, S2EdgeLike, S2VertexLike}
 import org.apache.tinkerpop.gremlin.process.traversal.step.util.HasContainer

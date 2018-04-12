@@ -20,10 +20,10 @@
 package org.apache.s2graph.core.models
 
 import org.apache.s2graph.core.TestCommonWithModels
-import org.apache.s2graph.core.mysqls.Label
+import org.apache.s2graph.core.schema.Label
 import org.scalatest.{BeforeAndAfterAll, FunSuite, Matchers}
 
-class ModelTest extends FunSuite with Matchers with TestCommonWithModels with BeforeAndAfterAll {
+class SchemaTest extends FunSuite with Matchers with TestCommonWithModels with BeforeAndAfterAll {
   override def beforeAll(): Unit = {
     initTests()
   }

@@ -55,8 +55,7 @@ libraryDependencies ++= Seq(
   "com.sksamuel.elastic4s" %% "elastic4s-core" % elastic4sVersion excludeLogging(),
   "com.sksamuel.elastic4s" %% "elastic4s-http" % elastic4sVersion excludeLogging(),
   "com.sksamuel.elastic4s" %% "elastic4s-embedded" % elastic4sVersion excludeLogging(),
-  "org.scala-lang.modules" %% "scala-pickling" % "0.10.1",
-  "io.reactivex.rxjava2" % "rxjava" % "2.1.4"
+  "org.scala-lang.modules" %% "scala-pickling" % "0.10.1"
 )
 
 libraryDependencies := {

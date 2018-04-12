@@ -29,7 +29,7 @@ import org.apache.lucene.queryparser.classic.{ParseException, QueryParser}
 import org.apache.lucene.search.IndexSearcher
 import org.apache.lucene.store.{BaseDirectory, RAMDirectory}
 import org.apache.s2graph.core.io.Conversions
-import org.apache.s2graph.core.mysqls.GlobalIndex
+import org.apache.s2graph.core.schema.GlobalIndex
 import org.apache.s2graph.core.types.VertexId
 import org.apache.s2graph.core.utils.logger
 import org.apache.s2graph.core.{EdgeId, S2EdgeLike, S2VertexLike}

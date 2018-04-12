@@ -17,14 +17,14 @@
  * under the License.
  */
 
-package org.apache.s2graph.core.mysqls
+package org.apache.s2graph.core.schema
 
 import org.apache.tinkerpop.gremlin.process.traversal.step.util.HasContainer
 import scalikejdbc.{AutoSession, DBSession, WrappedResultSet}
 import scalikejdbc._
 
 object GlobalIndex extends SQLSyntaxSupport[GlobalIndex] {
-  import Model._
+  import Schema._
   val className = GlobalIndex.getClass.getSimpleName
 
   val vidField = "_vid_"

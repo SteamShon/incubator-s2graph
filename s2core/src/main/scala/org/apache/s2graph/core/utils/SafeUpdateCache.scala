@@ -24,9 +24,6 @@ import java.util.concurrent.atomic.AtomicBoolean
 
 import com.google.common.cache.CacheBuilder
 import com.google.common.hash.Hashing
-import io.reactivex.functions.Consumer
-import io.reactivex.schedulers.Schedulers
-
 import scala.collection.JavaConversions._
 import scala.concurrent.{ExecutionContext, Future}
 import scala.util.{Failure, Success, Try}
@@ -56,57 +53,11 @@ object SafeUpdateCache {
 }
 
 class SafeUpdateCache(maxSize: Int,
-                      ttl: Int,
-                      synchronizerOpt: Option[Sync[Array[Byte]]] = None)
+                      ttl: Int)
                      (implicit executionContext: ExecutionContext) {
 
   import java.lang.{Long => JLong}
   import SafeUpdateCache._
-
-  @volatile var useSync = synchronizerOpt.isDefined
-
-  synchronizerOpt.foreach { sync =>
-
-    /**
-      * Backpressure: http://www.baeldung.com/rxjava-backpressure
-      *
-      * Must specify observerOn to run the subscription in a separate thread.
-      *
-      * http://tomstechnicalblog.blogspot.kr/2016/02/rxjava-understanding-observeon-and.html
-      *
-      * [RxComputationScheduler-2] - [Message received] (-6017608668500074083,[B@33b58b4a)
-      * [RxComputationScheduler-1] - [Message received] (-6017608668500074083,[B@33b58b4a)
-      */
-    import io.reactivex._
-
-    sync
-      .emitter
-      .onBackpressureBuffer(1024, new io.reactivex.functions.Action() {
-        override def run() = { logger.error("[Subscribe buffer overflow: drop oldest message]") }
-      }, BackpressureOverflowStrategy.DROP_OLDEST)
-      .observeOn(Schedulers.computation())
-      .subscribe(new functions.Consumer[(String, Array[Byte])] {
-        override def accept(t: (String, Array[Byte])) = {
-          if (useSync) {
-            val (k, value) = t
-            val cacheKey = k.toLong
-
-            if (value.isEmpty) {
-              invalidateInner(cacheKey)
-            } else {
-              val deserialized = deserialise(value)
-              if (deserialized.isSuccess) {
-                putInner(cacheKey, deserialized.get)
-              }
-            }
-
-            logger.syncInfo(s"[Message received]: key: ${t._1}")
-          }
-        }
-      }, new Consumer[Throwable] { // onError
-        override def accept(t: Throwable): Unit = logger.error("[Error on message receive]", t)
-      })
-  }
 
   private val cache = CacheBuilder.newBuilder().maximumSize(maxSize)
     .build[JLong, (AnyRef, Int, AtomicBoolean)]()
@@ -120,15 +71,6 @@ class SafeUpdateCache(maxSize: Int,
   def put(key: String, value: AnyRef, broadcast: Boolean = false): Unit = {
     val cacheKey = toCacheKey(key)
     cache.put(cacheKey, (value, toTs, new AtomicBoolean(false)))
-
-    if (useSync && broadcast) {
-      synchronizerOpt.foreach { obj =>
-        serialise(value).foreach { serialised =>
-          logger.syncInfo(s"[Broadcast in SafeUpdateCache]: key: ${key}, cacheKey: ${cacheKey}, value: ${value}")
-          obj.send(cacheKey.toString, serialised)
-        }
-      }
-    }
   }
 
   def putInner(cacheKey: Long, value: AnyRef): Unit = {
@@ -138,10 +80,6 @@ class SafeUpdateCache(maxSize: Int,
   def invalidate(key: String, broadcast: Boolean = true) = {
     val cacheKey = toCacheKey(key)
     cache.invalidate(cacheKey)
-
-    if (useSync && broadcast) {
-      synchronizerOpt.foreach(obj => obj.send(cacheKey.toString))
-    }
   }
 
   def invalidateInner(cacheKey: Long): Unit = {
@@ -226,6 +164,6 @@ class SafeUpdateCache(maxSize: Int,
     }
   }
 
-  def shutdown() = synchronizerOpt.foreach(_.shutdown())
+  def shutdown() = {}
 }
 

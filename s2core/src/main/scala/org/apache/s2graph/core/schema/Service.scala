@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.apache.s2graph.core.mysqls
+package org.apache.s2graph.core.schema
 
 import java.util.UUID
 
@@ -27,7 +27,7 @@ import play.api.libs.json.Json
 import scalikejdbc._
 
 object Service extends SQLSyntaxSupport[Service] {
-  import Model._
+  import Schema._
   val className = Service.getClass.getSimpleName
 
   def valueOf(rs: WrappedResultSet): Service = {
@@ -121,8 +121,8 @@ case class Service(id: Option[Int],
         Json.parse("{}")
     }
 
-  lazy val extraOptions = Model.extraOptions(options)
+  lazy val extraOptions = Schema.extraOptions(options)
   lazy val storageConfigOpt: Option[Config] = toStorageConfig
   def serviceColumns(useCache: Boolean): Seq[ServiceColumn] = ServiceColumn.findByServiceId(id.get, useCache = useCache)
-  def toStorageConfig: Option[Config] = Model.toStorageConfig(extraOptions)
+  def toStorageConfig: Option[Config] = Schema.toStorageConfig(extraOptions)
 }
