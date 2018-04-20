@@ -17,10 +17,10 @@
  * under the License.
  */
 
-package org.apache.s2graph.core.models
+package org.apache.s2graph.core.schema
 
 import org.apache.s2graph.core.TestCommonWithModels
-import org.apache.s2graph.core.schema.Label
+import org.apache.s2graph.core.utils.SafeUpdateCache
 import org.scalatest.{BeforeAndAfterAll, FunSuite, Matchers}
 
 class SchemaTest extends FunSuite with Matchers with TestCommonWithModels with BeforeAndAfterAll {
@@ -55,5 +55,23 @@ class SchemaTest extends FunSuite with Matchers with TestCommonWithModels with B
     println(srcColumn)
     val tgtColumn = labelOpt.get.tgtService
     println(tgtColumn)
+  }
+
+  test("serialize/deserialize Schema.") {
+    import scala.collection.JavaConverters._
+    val originalMap = Schema.safeUpdateCache.asMap().asScala
+    val newCache = new SafeUpdateCache(Schema.maxSize, Schema.ttl)(scala.concurrent.ExecutionContext.Implicits.global)
+    Schema.fromBytes(newCache, Schema.toBytes())
+    val newMap = newCache.asMap().asScala
+
+    originalMap.size shouldBe newMap.size
+    originalMap.keySet shouldBe newMap.keySet
+
+    originalMap.keySet.foreach { key =>
+      val (originalVal, _, _) = originalMap(key)
+      val (newVal, _, _) = newMap(key)
+
+      originalVal shouldBe newVal
+    }
   }
 }

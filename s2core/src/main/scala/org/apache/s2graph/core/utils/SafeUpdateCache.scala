@@ -50,6 +50,27 @@ object SafeUpdateCache {
 
     Try(BinaryPickle(bytes).unpickle[AnyRef])
   }
+
+  def fromBytes(cache: SafeUpdateCache, bytes: Array[Byte]): Unit = {
+    import org.apache.hadoop.io.WritableUtils
+
+    val bais = new ByteArrayInputStream(bytes)
+    val input = new DataInputStream(bais)
+
+    try {
+      val size = WritableUtils.readVInt(input)
+      (1 to size).foreach { ith =>
+        val cacheKey = WritableUtils.readVLong(input)
+        val value = deserialise(WritableUtils.readCompressedByteArray(input))
+        value.foreach { dsv =>
+          cache.putInner(cacheKey, dsv)
+        }
+      }
+    } finally {
+      bais.close()
+      input.close()
+    }
+  }
 }
 
 class SafeUpdateCache(maxSize: Int,
@@ -127,9 +148,11 @@ class SafeUpdateCache(maxSize: Int,
 
   def get(key: String) = cache.asMap().get(toCacheKey(key))
 
-  def toFile(file: File): Unit = {
+  def toBytes(): Array[Byte] = {
     import org.apache.hadoop.io.WritableUtils
-    val output = new DataOutputStream(new FileOutputStream(file))
+    val baos = new ByteArrayOutputStream()
+    val output = new DataOutputStream(baos)
+
     try {
       val m = cache.asMap()
       val size = m.size()
@@ -142,25 +165,11 @@ class SafeUpdateCache(maxSize: Int,
           WritableUtils.writeCompressedByteArray(output, sv)
         }
       }
+      output.flush()
+      baos.toByteArray
     } finally {
+      baos.close()
       output.close()
-    }
-  }
-
-  def fromFile(file: File): Unit = {
-    import org.apache.hadoop.io.WritableUtils
-    val input = new DataInputStream(new FileInputStream(file))
-    try {
-      val size = WritableUtils.readVInt(input)
-      (1 to size).foreach { ith =>
-        val cacheKey = WritableUtils.readVLong(input)
-        val value = deserialise(WritableUtils.readCompressedByteArray(input))
-        value.foreach { dsv =>
-          putInner(cacheKey, dsv)
-        }
-      }
-    } finally {
-      input.close()
     }
   }
 

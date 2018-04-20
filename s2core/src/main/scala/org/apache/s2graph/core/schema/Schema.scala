@@ -19,7 +19,6 @@
 
 package org.apache.s2graph.core.schema
 
-import java.io.File
 import java.util.concurrent.Executors
 import java.util.concurrent.atomic.AtomicLong
 
@@ -219,26 +218,8 @@ object Schema {
     (Nil, Nil)
   }
 
-  def toFile(file: File): Unit = safeUpdateCache.toFile(file)
+  def toBytes(): Array[Byte] = safeUpdateCache.toBytes()
 
-  def fromFile(file: File): Unit = safeUpdateCache.fromFile(file)
-}
-
-object ModelDump {
-  lazy val init: Unit = {
-    Schema.maxSize = Int.MaxValue
-    Schema.ttl = 2592000 // 1 month
-    Schema.apply(ConfigFactory.load)
-    Schema.loadCache()
-  }
-
-  def saveToFile(file: File) {
-
-    Schema.toFile(file)
-  }
-
-  def loadFromFile(file: File): Unit = {
-    Schema.fromFile(file)
-  }
+  def fromBytes(safeUpdateCache: SafeUpdateCache, bytes: Array[Byte]): Unit = SafeUpdateCache.fromBytes(safeUpdateCache, bytes)
 }
 
