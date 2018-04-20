@@ -34,10 +34,23 @@ import scala.concurrent.{ExecutionContext, Future}
 import scala.util.Try
 
 object IndexProvider {
-  import GlobalIndex._
+
   //TODO: Fix Me
   val hitsPerPage = 100000
   val IdField = "id"
+  val vidField = "_vid_"
+  val eidField = "_eid_"
+  val labelField = "_label_"
+  val serviceField = "_service_"
+  val serviceColumnField = "_serviceColumn_"
+  val EdgeType = "edge"
+  val VertexType = "vertex"
+  val hiddenIndexFields = Set(vidField, eidField, labelField, serviceField, serviceColumnField)
+
+  //  val IndexName = "global_indices"
+  val VertexIndexName = "global_vertex_index"
+  val EdgeIndexName = "global_edge_index"
+  val TypeName = "test"
 
   def apply(config: Config)(implicit ec: ExecutionContext): IndexProvider = {
 

@@ -26,7 +26,6 @@ import com.sksamuel.elastic4s.http.ElasticDsl._
 import com.sksamuel.elastic4s.http.HttpClient
 import com.typesafe.config.Config
 import org.apache.s2graph.core.io.Conversions
-import org.apache.s2graph.core.schema._
 import org.apache.s2graph.core.types.VertexId
 import org.apache.s2graph.core.{EdgeId, S2EdgeLike, S2VertexLike}
 import org.apache.tinkerpop.gremlin.process.traversal.step.util.HasContainer
@@ -38,7 +37,6 @@ import scala.concurrent.{Await, ExecutionContext, Future}
 import scala.util.Try
 
 class ESIndexProvider(config: Config)(implicit ec: ExecutionContext) extends IndexProvider {
-  import GlobalIndex._
   import IndexProvider._
 
   import scala.collection.mutable
@@ -102,7 +100,7 @@ class ESIndexProvider(config: Config)(implicit ec: ExecutionContext) extends Ind
   override def mutateVerticesAsync(vertices: Seq[S2VertexLike], forceToIndex: Boolean = false): Future[Seq[Boolean]] = {
     val bulkRequests = vertices.flatMap { vertex =>
         toFields(vertex, forceToIndex).toSeq.map { fields =>
-          update(vertex.id.toString()).in(new IndexAndType(GlobalIndex.VertexIndexName, GlobalIndex.TypeName)).docAsUpsert(fields)
+          update(vertex.id.toString()).in(new IndexAndType(VertexIndexName, TypeName)).docAsUpsert(fields)
         }
       }
 
@@ -130,7 +128,7 @@ class ESIndexProvider(config: Config)(implicit ec: ExecutionContext) extends Ind
   override def mutateEdgesAsync(edges: Seq[S2EdgeLike], forceToIndex: Boolean = false): Future[Seq[Boolean]] = {
     val bulkRequests = edges.flatMap { edge =>
       toFields(edge, forceToIndex).toSeq.map { fields =>
-        update(edge.edgeId.toString()).in(new IndexAndType(GlobalIndex.EdgeIndexName, GlobalIndex.TypeName)).docAsUpsert(fields)
+        update(edge.edgeId.toString()).in(new IndexAndType(EdgeIndexName, TypeName)).docAsUpsert(fields)
       }
     }
 
@@ -157,7 +155,7 @@ class ESIndexProvider(config: Config)(implicit ec: ExecutionContext) extends Ind
     val queryString = buildQueryString(hasContainers)
 
     client.execute {
-      search(GlobalIndex.EdgeIndexName).query(queryString)
+      search(EdgeIndexName).query(queryString)
     }.map { ret =>
       ret match {
         case Left(failure) =>
@@ -187,7 +185,7 @@ class ESIndexProvider(config: Config)(implicit ec: ExecutionContext) extends Ind
     val queryString = buildQueryString(hasContainers)
 
     client.execute {
-      search(GlobalIndex.VertexIndexName).query(queryString)
+      search(VertexIndexName).query(queryString)
     }.map { ret =>
       ret match {
         case Left(failure) =>

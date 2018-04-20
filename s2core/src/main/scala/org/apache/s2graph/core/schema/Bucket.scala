@@ -32,45 +32,6 @@ object Bucket extends SQLSyntaxSupport[Bucket] {
   val INVALID_BUCKET_EXCEPTION = new RuntimeException("invalid bucket.")
   val InActiveModulars = Set("0~0")
 
-  def fromJson(jsValue: JsValue): Bucket = {
-    val idOpt = (jsValue \ "id").asOpt[Int]
-    val experimentId = (jsValue \ "experiment_id").as[Int]
-    val modular = (jsValue \ "modular").as[String]
-    val httpVerb = (jsValue \ "http_verb").asOpt[String].getOrElse("POST")
-    val apiPath = (jsValue \ "api_path").asOpt[String].getOrElse("")
-    val requestBody = (jsValue \ "request_body").asOpt[String].getOrElse("{}")
-    val timeout = (jsValue \ "timeout").asOpt[Int].getOrElse(1000)
-    val impressionId = (jsValue \ "impression_id").as[String]
-    val isGraphQuery = (jsValue \ "is_graph_query").asOpt[Boolean].getOrElse(true)
-    val isEmpty = (jsValue \ "is_empty").asOpt[Boolean].getOrElse(false)
-
-    (idOpt, findByImpressionId(impressionId)) match {
-      case (Some(id), Some(bucket)) => // update
-        update(id, experimentId, modular, httpVerb, apiPath, requestBody, timeout, impressionId, isGraphQuery, isEmpty).get
-//      case (Some(id), None) => // not possible
-      case (None, Some(bucket)) => // impression id is taken by others.
-        throw new RuntimeException(s"$impressionId is taken by ${bucket.toJson}")
-      case (None, None) => // insert
-        insert(experimentId, modular, httpVerb, apiPath, requestBody, timeout, impressionId, isGraphQuery, isEmpty).get
-    }
-  }
-
-  def upsert(id: Int,
-             experimentId: Int,
-             modular: String,
-             httpVerb: String,
-             apiPath: String,
-             requestBody: String,
-             timeout: Int,
-             impressionId: String,
-             isGraphQuery: Boolean,
-             isEmpty: Boolean)(implicit session: DBSession = AutoSession): Bucket = {
-    findByImpressionId(impressionId) match {
-      case Some(b) => update(b.id.get, experimentId, modular, httpVerb, apiPath, requestBody, timeout, impressionId, isGraphQuery, isEmpty).get
-      case None => insert(experimentId, modular, httpVerb, apiPath, requestBody, timeout, impressionId, isGraphQuery, isEmpty).get
-    }
-  }
-
   def valueOf(rs: WrappedResultSet): Bucket = {
     Bucket(rs.intOpt("id"),
       rs.int("experiment_id"),

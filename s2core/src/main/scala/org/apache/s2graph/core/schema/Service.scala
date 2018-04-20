@@ -31,8 +31,13 @@ object Service extends SQLSyntaxSupport[Service] {
   val className = Service.getClass.getSimpleName
 
   def valueOf(rs: WrappedResultSet): Service = {
-    Service(rs.intOpt("id"), rs.string("service_name"), rs.string("access_token"),
-      rs.string("cluster"), rs.string("hbase_table_name"), rs.int("pre_split_size"), rs.intOpt("hbase_table_ttl"))
+    Service(rs.intOpt("id"),
+      rs.string("service_name"),
+      rs.string("access_token"),
+      rs.string("cluster"),
+      rs.string("hbase_table_name"),
+      rs.int("pre_split_size"),
+      rs.intOpt("hbase_table_ttl"))
   }
 
   def findByAccessToken(accessToken: String)(implicit session: DBSession = AutoSession): Option[Service] = {
