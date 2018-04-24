@@ -244,6 +244,15 @@ class S2Graph(_config: Config)(implicit val ec: ExecutionContext) extends S2Grap
     storagePool.getOrElse(s"label:${label.label}", defaultStorage)
   }
 
+  //TODO:
+  override def getFetcher(column: ServiceColumn): Fetcher = {
+    getStorage(column.service).reader
+  }
+
+  override def getFetcher(label: Label): Fetcher = {
+    getStorage(label).reader
+  }
+
   override def flushStorage(): Unit = {
     storagePool.foreach { case (_, storage) =>
 

@@ -26,18 +26,18 @@ import org.apache.s2graph.core.utils.logger
 
 import scala.concurrent.{ExecutionContext, Future}
 
-trait StorageReadable {
+trait StorageReadable extends Fetcher {
   val io: StorageIO
   val serDe: StorageSerDe
- /**
-    * responsible to fire parallel fetch call into storage and create future that will return merged result.
-    *
-    * @param queryRequests
-    * @param prevStepEdges
-    * @return
-    */
-  def fetches(queryRequests: Seq[QueryRequest],
-              prevStepEdges: Map[VertexId, Seq[EdgeWithScore]])(implicit ec: ExecutionContext): Future[Seq[StepResult]]
+// /**
+//    * responsible to fire parallel fetch call into storage and create future that will return merged result.
+//    *
+//    * @param queryRequests
+//    * @param prevStepEdges
+//    * @return
+//    */
+//  def fetches(queryRequests: Seq[QueryRequest],
+//              prevStepEdges: Map[VertexId, Seq[EdgeWithScore]])(implicit ec: ExecutionContext): Future[Seq[StepResult]]
 
   def fetchEdgesAll()(implicit ec: ExecutionContext): Future[Seq[S2EdgeLike]]
 
