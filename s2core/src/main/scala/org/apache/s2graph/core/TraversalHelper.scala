@@ -389,7 +389,7 @@ class TraversalHelper(graph: S2GraphLike) {
             val newEdgeWithScore = edgeWithScore.copy(edge = newEdge)
             /* OrderBy */
             val orderByValues =
-              if (queryOption.orderByKeys.isEmpty) (score, edge.getTsInnerValValue(), None, None)
+              if (queryOption.orderByKeys.isEmpty) (score, edge.getTs(), None, None)
               else StepResult.toTuple4(newEdgeWithScore.toValues(queryOption.orderByKeys))
 
             /* StepGroupBy */

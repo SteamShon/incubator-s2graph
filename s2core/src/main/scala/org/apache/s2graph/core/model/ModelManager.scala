@@ -8,8 +8,8 @@ import org.apache.s2graph.core.{Fetcher, S2GraphLike}
 import scala.concurrent.{ExecutionContext, Future}
 
 object ModelManager {
-  val FetcherClassNameKey = "fetch.class.name"
-  val ImporterClassNameKey = "importer.class.name"
+  val FetcherClassNameKey = "fetchClassName"
+  val ImporterClassNameKey = "importerClassName"
 }
 
 class ModelManager(s2GraphLike: S2GraphLike) {
@@ -61,6 +61,7 @@ class ModelManager(s2GraphLike: S2GraphLike) {
             initFetcher(config).map { fetcher =>
               importer.setStatus(true)
 
+
               fetcherPool
                 .remove(k)
                 .foreach { oldFetcher =>
@@ -68,6 +69,7 @@ class ModelManager(s2GraphLike: S2GraphLike) {
                   oldFetcher.close()
                 }
 
+              fetcherPool += (k -> fetcher)
               true
             }
 

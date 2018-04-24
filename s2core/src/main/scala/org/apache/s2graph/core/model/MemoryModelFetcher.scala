@@ -1,8 +1,9 @@
 package org.apache.s2graph.core.model
 
 import com.typesafe.config.Config
-import org.apache.s2graph.core.types.VertexId
+import org.apache.s2graph.core.types.{InnerValLikeWithTs, VertexId}
 import org.apache.s2graph.core._
+import org.apache.s2graph.core.schema.LabelMeta
 
 import scala.concurrent.{ExecutionContext, Future}
 
@@ -12,9 +13,9 @@ import scala.concurrent.{ExecutionContext, Future}
   */
 class MemoryModelFetcher(val graph: S2GraphLike) extends Fetcher {
   val builder = graph.elementBuilder
-  val ranges = (0 to 10)
+  val ranges = (0 until 10)
 
-  override def init(config: Config): Future[Fetcher] = {
+  override def init(config: Config)(implicit ec: ExecutionContext): Future[Fetcher] = {
     Future.successful(this)
   }
 
@@ -24,9 +25,9 @@ class MemoryModelFetcher(val graph: S2GraphLike) extends Fetcher {
       val queryParam = queryRequest.queryParam
       val edges = ranges.map { ith =>
         val tgtVertexId = builder.newVertexId(queryParam.label.service, queryParam.label.tgtColumnWithDir(queryParam.labelWithDir.dir), ith.toString)
-        val tgtVertex = builder.newVertex(tgtVertexId)
 
-        builder.newEdge(queryRequest.vertex, tgtVertex, queryParam.label, queryParam.dir.toInt, propsWithTs = S2Edge.EmptyState)
+        graph.toEdge(queryRequest.vertex.innerIdVal,
+          tgtVertexId.innerId.value, queryParam.label.label, queryParam.direction)
       }
 
       val edgeWithScores = edges.map(e => EdgeWithScore(e, 1.0, queryParam.label))

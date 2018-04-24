@@ -19,7 +19,7 @@ object AnnoyModelFetcher {
   val DimensionKey = "annoy.index.dimension"
   val IndexTypeKey = "annoy.index.type"
 
-  def loadDict(file: File): Array[String] = {
+  def loadDictFromLocal(file: File): Array[String] = {
     Source.fromFile(file).getLines().map { line =>
       line.stripMargin
     }.toArray
@@ -32,7 +32,7 @@ object AnnoyModelFetcher {
     val dimension = config.getInt(DimensionKey)
     val indexType = Try { config.getString(IndexTypeKey) }.toOption.map(IndexType.valueOf).getOrElse(IndexType.ANGULAR)
 
-    val dict = loadDict(new File(dictPath))
+    val dict = loadDictFromLocal(new File(dictPath))
     val index = new ANNIndex(dimension, filePath, indexType)
     ANNIndexWithDict(index, dict)
   }
@@ -48,7 +48,7 @@ class AnnoyModelFetcher(val graph: S2GraphLike) extends Fetcher {
 
   var model: ANNIndexWithDict = _
 
-  override def init(config: Config): Future[Fetcher] = {
+  override def init(config: Config)(implicit ec: ExecutionContext): Future[Fetcher] = {
     Future {
       model = AnnoyModelFetcher.buildIndex(config)
 
