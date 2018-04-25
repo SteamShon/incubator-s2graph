@@ -23,11 +23,11 @@ class FetcherTest extends IntegrateCommon{
     val labelName = "fetcher_test"
     val options = s"""{
                      |
-      | "importer": {
-                     | "${ModelManager.ImporterClassNameKey}": "identity"
+                     | "importer": {
+                     |   "${ModelManager.ImporterClassNameKey}": "org.apache.s2graph.core.model.IdentityImporter"
                      | },
                      | "fetcher": {
-                     |   "${ModelManager.FetcherClassNameKey}": "memory"
+                     |   "${ModelManager.FetcherClassNameKey}": "org.apache.s2graph.core.model.MemoryModelFetcher"
                      | }
                      |}""".stripMargin
 
@@ -78,30 +78,22 @@ class FetcherTest extends IntegrateCommon{
     val serviceColumn =
       management.createServiceColumn("s2graph", "user", "string", Seq(Prop("age", "0", "int", true)))
 
-    //    val options = s"""{
-    //                     | "importer": {
-    //                     |   "${ModelManager.ImporterClassNameKey}": "hdfs",
-    //                     |   "${HDFSImporter.HDFSConfDirKey}": "$hdfsConfDir",
-    //                     |   "${HDFSImporter.PathsKey}": {
-    //                     |     "${REMOTE_INDEX_FILE}": "${LOCAL_INDEX_FILE}",
-    //                     |     "${REMOTE_DICT_FILE}": "${LOCAL_DICT_FILE}"
-    //                     |   }
-    //                     | },
-    //                     | "fetcher": {
-    //                     |   "${ModelManager.FetcherClassNameKey}": "annoy",
-    //                     |   "${AnnoyModelFetcher.IndexFilePathKey}": "${LOCAL_INDEX_FILE}",
-    //                     |   "${AnnoyModelFetcher.DictFilePathKey}": "${LOCAL_DICT_FILE}",
-    //                     |   "${AnnoyModelFetcher.DimensionKey}": 10
-    //                     | }
-    //                     |}""".stripMargin
     val options = s"""{
                      | "importer": {
-                     |   "${ModelManager.ImporterClassNameKey}": "identity"
+                     |   "${ModelManager.ImporterClassNameKey}": "org.apache.s2graph.core.model.HDFSImporter",
+                     |   "${HDFSImporter.HDFSConfDirKey}": "$hdfsConfDir",
+                     |   "${HDFSImporter.PathsKey}": [{
+                     |      "src": "${REMOTE_INDEX_FILE}",
+                     |      "tgt": "${LOCAL_INDEX_FILE}"
+                     |   }, {
+                     |      "src": "${REMOTE_DICT_FILE}",
+                     |      "tgt": "${LOCAL_DICT_FILE}"
+                     |   }]
                      | },
                      | "fetcher": {
-                     |   "${ModelManager.FetcherClassNameKey}": "annoy",
-                     |   "${AnnoyModelFetcher.IndexFilePathKey}": "${REMOTE_INDEX_FILE}",
-                     |   "${AnnoyModelFetcher.DictFilePathKey}": "${REMOTE_DICT_FILE}",
+                     |   "${ModelManager.FetcherClassNameKey}": "org.apache.s2graph.core.model.AnnoyModelFetcher",
+                     |   "${AnnoyModelFetcher.IndexFilePathKey}": "${LOCAL_INDEX_FILE}",
+                     |   "${AnnoyModelFetcher.DictFilePathKey}": "${LOCAL_DICT_FILE}",
                      |   "${AnnoyModelFetcher.DimensionKey}": 10
                      | }
                      |}""".stripMargin

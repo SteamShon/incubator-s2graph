@@ -26,24 +26,22 @@ class ModelManager(s2GraphLike: S2GraphLike) {
 
   def initImporter(config: Config): Importer = {
     val className = config.getString(ImporterClassNameKey)
-    className match {
-      case "hdfs" => HDFSImporter(s2GraphLike, config)
-      case _ => IdentityImporter()
-    }
+
+    Class.forName(className)
+      .getConstructor(classOf[S2GraphLike])
+      .newInstance(s2GraphLike)
+      .asInstanceOf[Importer]
   }
 
   def initFetcher(config: Config)(implicit ec: ExecutionContext): Future[Fetcher] = {
     val className = config.getString(FetcherClassNameKey)
-    //TODO: ClassForName.
-    className match {
-      case "memory" =>
-        val fetcher = new MemoryModelFetcher(s2GraphLike)
-        fetcher.init(config)
-      case "annoy" =>
-        val fetcher = new AnnoyModelFetcher(s2GraphLike)
-        fetcher.init(config)
-      case _ => throw new IllegalArgumentException(s"not implemented yet.")
-    }
+
+    val fetcher = Class.forName(className)
+        .getConstructor(classOf[S2GraphLike])
+      .newInstance(s2GraphLike)
+      .asInstanceOf[Fetcher]
+
+    fetcher.init(config)
   }
 
   def importModel(label: Label, config: Config)(implicit ec: ExecutionContext): Future[Importer] = {
@@ -53,7 +51,7 @@ class ModelManager(s2GraphLike: S2GraphLike) {
 
         //TODO: Update Label's extra options.
         importer
-          .run()
+          .run(config.getConfig("importer"))
           .map { importer =>
             logger.info(s"Close importer")
             importer.close()

@@ -11,10 +11,10 @@ import org.apache.s2graph.core.utils.logger
 import scala.concurrent.{ExecutionContext, Future}
 
 object Importer {
-  def toHDFSConfiguration(): Configuration = {
+  def toHDFSConfiguration(hdfsConfDir: String): Configuration = {
     val conf = new Configuration
 
-    val hdfsConfDirectory = new File(".", "hdfs-conf")
+    val hdfsConfDirectory = new File(hdfsConfDir)
     if (hdfsConfDirectory.exists()) {
       if (!hdfsConfDirectory.isDirectory || !hdfsConfDirectory.canRead) {
         throw new IllegalStateException(s"HDFS configuration directory ($hdfsConfDirectory) cannot be read.")
@@ -32,7 +32,7 @@ object Importer {
 
 trait Importer {
   @volatile var isFinished: Boolean = false
-  def run()(implicit ec: ExecutionContext): Future[Importer]
+  def run(config: Config)(implicit ec: ExecutionContext): Future[Importer]
 
   def status: Boolean = isFinished
 
@@ -45,8 +45,8 @@ trait Importer {
 //  def getImportedStorage(graphExecutionContext: ExecutionContext): Storage[_, _]
   def close(): Unit
 }
-case class IdentityImporter() extends Importer {
-  override def run()(implicit ec: ExecutionContext): Future[Importer] = {
+case class IdentityImporter(graph: S2GraphLike) extends Importer {
+  override def run(config: Config)(implicit ec: ExecutionContext): Future[Importer] = {
     Future.successful(this)
   }
 
@@ -55,23 +55,27 @@ case class IdentityImporter() extends Importer {
 object HDFSImporter {
   import scala.collection.JavaConverters._
   val PathsKey = "paths"
+  val HDFSConfDirKey = "hdfsConfDir"
+
   def extractPaths(config: Config): Map[String, String] = {
-    config.getConfig(PathsKey).entrySet().asScala.map { e =>
-      val key = e.getKey
-      val value = e.getValue
-      key -> value.unwrapped().toString
+    config.getConfigList(PathsKey).asScala.map { e =>
+      val key = e.getString("src")
+      val value = e.getString("tgt")
+
+      key -> value
     }.toMap
   }
 }
-case class HDFSImporter(graph: S2GraphLike,
-                        config: Config) extends Importer {
+case class HDFSImporter(graph: S2GraphLike) extends Importer {
 
   import HDFSImporter._
-  val paths = extractPaths(config)
 
-  override def run()(implicit ec: ExecutionContext): Future[Importer] = {
+  override def run(config: Config)(implicit ec: ExecutionContext): Future[Importer] = {
     Future {
-      val hadoopConfig = Importer.toHDFSConfiguration()
+      val paths = extractPaths(config)
+      val hdfsConfiDir = config.getString(HDFSConfDirKey)
+
+      val hadoopConfig = Importer.toHDFSConfiguration(hdfsConfiDir)
       val fs = FileSystem.get(hadoopConfig)
 
       def copyToLocal(remoteSrc: String, localSrc: String): Unit = {
