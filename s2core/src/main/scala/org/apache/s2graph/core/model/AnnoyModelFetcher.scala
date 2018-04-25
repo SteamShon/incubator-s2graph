@@ -12,12 +12,10 @@ import scala.io.Source
 import scala.util.Try
 
 object AnnoyModelFetcher {
-  val IndexFileRemotePathKey = "annoy.index.file.remote.path"
-  val IndexFilePathKey = "annoy.index.file.path"
-  val DictFileRemotePathKey = "annoy.dict.file.remote.path"
-  val DictFilePathKey = "annoy.dict.file.path"
-  val DimensionKey = "annoy.index.dimension"
-  val IndexTypeKey = "annoy.index.type"
+  val IndexFilePathKey = "annoyIndexFilePath"
+  val DictFilePathKey = "annoyDictFilePath"
+  val DimensionKey = "annoyIndexDimension"
+  val IndexTypeKey = "annoyIndexType"
 
   def loadDictFromLocal(file: File): Array[String] = {
     Source.fromFile(file).getLines().map { line =>
@@ -72,9 +70,8 @@ class AnnoyModelFetcher(val graph: S2GraphLike) extends Fetcher {
         val edges = nns.map { tgtIdx =>
           val tgtVertexId = builder.newVertexId(queryParam.label.service,
             queryParam.label.tgtColumnWithDir(queryParam.labelWithDir.dir), model.dict(tgtIdx))
-          val tgtVertex = builder.newVertex(tgtVertexId)
 
-          builder.newEdge(vertex, tgtVertex, queryParam.label, queryParam.dir.toInt, propsWithTs = S2Edge.EmptyState)
+          graph.toEdge(vertex.innerId.value, tgtVertexId.innerId.value, queryParam.labelName, queryParam.direction)
         }
         val edgeWithScores = edges.map(e => EdgeWithScore(e, 1.0, queryParam.label))
         StepResult(edgeWithScores, Nil, Nil)

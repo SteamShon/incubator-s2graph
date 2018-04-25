@@ -49,7 +49,7 @@ class ModelManager(s2GraphLike: S2GraphLike) {
   def importModel(label: Label, config: Config)(implicit ec: ExecutionContext): Future[Importer] = {
     val importer = ImportLock.computeIfAbsent(toImportLockKey(label), new java.util.function.Function[String, Importer] {
       override def apply(k: String): Importer = {
-        val importer = initImporter(config)
+        val importer = initImporter(config.getConfig("importer"))
 
         //TODO: Update Label's extra options.
         importer
@@ -58,7 +58,7 @@ class ModelManager(s2GraphLike: S2GraphLike) {
             logger.info(s"Close importer")
             importer.close()
 
-            initFetcher(config).map { fetcher =>
+            initFetcher(config.getConfig("fetcher")).map { fetcher =>
               importer.setStatus(true)
 
 
