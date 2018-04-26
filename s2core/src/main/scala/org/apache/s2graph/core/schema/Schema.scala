@@ -45,9 +45,6 @@ object Schema {
   private val ModelReferenceCount = new AtomicLong(0L)
 
   def apply(config: Config) = {
-    maxSize = config.getInt("cache.max.size")
-    ttl = config.getInt("cache.ttl.seconds")
-
     Class.forName(config.getString("db.default.driver"))
 
     val settings = ConnectionPoolSettings(
@@ -63,7 +60,7 @@ object Schema {
       settings)
 
     checkSchema()
-    safeUpdateCache = new SafeUpdateCache(maxSize, ttl)(ec)
+    safeUpdateCache = new SafeUpdateCache(config)(ec)
     ModelReferenceCount.incrementAndGet()
   }
 
@@ -177,9 +174,9 @@ object Schema {
       }
   }
 
-  def toConfig(options: Map[String, JsValue], key: String): Option[Config] = {
+  def toStorageConfig(options: Map[String, JsValue]): Option[Config] = {
     try {
-      options.get(key).map { jsValue =>
+      options.get("storage").map { jsValue =>
         import scala.collection.JavaConverters._
         val configMap = jsValue.as[JsObject].fieldSet.toMap.map { case (key, value) =>
           key -> JSONParser.jsValueToAny(value).getOrElse(throw new RuntimeException("!!"))
@@ -220,6 +217,7 @@ object Schema {
 
   def toBytes(): Array[Byte] = safeUpdateCache.toBytes()
 
-  def fromBytes(safeUpdateCache: SafeUpdateCache, bytes: Array[Byte]): Unit = SafeUpdateCache.fromBytes(safeUpdateCache, bytes)
+  def fromBytes(config: Config, bytes: Array[Byte])(implicit ec: ExecutionContext): SafeUpdateCache =
+    SafeUpdateCache.fromBytes(config, bytes)
 }
 

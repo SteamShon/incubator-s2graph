@@ -23,7 +23,6 @@ import com.typesafe.config.Config
 import org.apache.s2graph.core._
 import org.apache.s2graph.core.schema.{Label, LabelMeta}
 import org.apache.s2graph.core.storage.SKeyValue
-import org.apache.s2graph.core.types.{InnerValLikeWithTs, SourceVertexId}
 import org.apache.spark.sql.Row
 import org.apache.spark.sql.types.StructType
 import play.api.libs.json.{JsObject, Json}
@@ -31,30 +30,15 @@ import play.api.libs.json.{JsObject, Json}
 import scala.concurrent.ExecutionContext
 import scala.util.Try
 
-object S2GraphHelper {
-  def initS2Graph(config: Config)(implicit ec: ExecutionContext = ExecutionContext.Implicits.global): S2Graph = {
-    new S2Graph(config)
-  }
+object S2GraphHelper extends Logger {
+  private var s2Graph:S2Graph = null
 
-  def buildDegreePutRequests(s2: S2Graph,
-                             vertexId: String,
-                             labelName: String,
-                             direction: String,
-                             degreeVal: Long): Seq[SKeyValue] = {
-    val label = Label.findByName(labelName).getOrElse(throw new RuntimeException(s"$labelName is not found in DB."))
-    val dir = GraphUtil.directions(direction)
-    val innerVal = JSONParser.jsValueToInnerVal(Json.toJson(vertexId), label.srcColumnWithDir(dir).columnType, label.schemaVersion).getOrElse {
-      throw new RuntimeException(s"$vertexId can not be converted into innerval")
+  def getS2Graph(config: Config, init:Boolean = false)(implicit ec: ExecutionContext = ExecutionContext.Implicits.global): S2Graph = {
+    if (s2Graph == null || init) {
+      logger.info(s"S2Graph initialized..")
+      s2Graph = new S2Graph(config)
     }
-    val vertex = s2.elementBuilder.newVertex(SourceVertexId(label.srcColumn, innerVal))
-
-    val ts = System.currentTimeMillis()
-    val propsWithTs = Map(LabelMeta.timestamp -> InnerValLikeWithTs.withLong(ts, ts, label.schemaVersion))
-    val edge = s2.elementBuilder.newEdge(vertex, vertex, label, dir, propsWithTs = propsWithTs)
-
-    edge.edgesWithIndex.flatMap { indexEdge =>
-      s2.getStorage(indexEdge.label).serDe.indexEdgeSerializer(indexEdge).toKeyValues
-    }
+    s2Graph
   }
 
   private def insertBulkForLoaderAsync(s2: S2Graph, edge: S2Edge, createRelEdges: Boolean = true): Seq[SKeyValue] = {
@@ -82,6 +66,24 @@ object S2GraphHelper {
     }
   }
 
+  def graphElementToSparkSqlRow(s2: S2Graph, element: GraphElement): Row = {
+    element match {
+      case e: S2EdgeLike =>
+        Row(
+          e.getTs(), e.getOperation(), "edge",
+          e.srcVertex.innerId.toIdString(), e.tgtVertex.innerId.toIdString(), e.label(),
+          PostProcess.s2EdgePropsJsonString(e),
+          e.getDirection()
+        )
+      case v: S2VertexLike =>
+        Row(
+          v.ts, GraphUtil.fromOp(v.op), "vertex",
+          v.innerId.toIdString(), v.serviceName, v.columnName,
+          PostProcess.s2VertexPropsJsonString(v)
+        )
+      case _ => throw new IllegalArgumentException(s"$element is not supported.")
+    }
+  }
   def sparkSqlRowToGraphElement(s2: S2Graph, row: Row, schema: StructType, reservedColumn: Set[String]): Option[GraphElement] = {
     val timestamp = row.getAs[Long]("timestamp")
     val operation = Try(row.getAs[String]("operation")).getOrElse("insert")

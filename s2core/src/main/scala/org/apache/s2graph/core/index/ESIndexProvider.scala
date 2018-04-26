@@ -27,9 +27,9 @@ import com.sksamuel.elastic4s.http.HttpClient
 import com.typesafe.config.Config
 import org.apache.s2graph.core.io.Conversions
 import org.apache.s2graph.core.types.VertexId
-import org.apache.s2graph.core.{EdgeId, S2EdgeLike, S2VertexLike}
+import org.apache.s2graph.core._
 import org.apache.tinkerpop.gremlin.process.traversal.step.util.HasContainer
-import play.api.libs.json.Json
+import play.api.libs.json.{Json, Reads}
 
 import scala.collection.JavaConverters._
 import scala.concurrent.duration.Duration
@@ -61,10 +61,10 @@ class ESIndexProvider(config: Config)(implicit ec: ExecutionContext) extends Ind
       props.foreach { case (dim, s2VertexProperty) =>
         // skip reserved fields.
         if (s2VertexProperty.columnMeta.seq > 0) {
-          s2VertexProperty.columnMeta.dataType match {
-            case "string" => fields += (dim -> s2VertexProperty.innerVal.value.toString)
-            case _ => fields += (dim -> s2VertexProperty.innerVal.value)
-          }
+          val innerVal = vertex.propertyValue(dim).get
+          val cType = s2VertexProperty.columnMeta.dataType
+
+          fields += (dim -> JSONParser.innerValToAny(innerVal, cType))
         }
       }
 
@@ -86,10 +86,10 @@ class ESIndexProvider(config: Config)(implicit ec: ExecutionContext) extends Ind
 
       props.foreach { case (dim, s2Property) =>
         if (s2Property.labelMeta.seq > 0) {
-          s2Property.labelMeta.dataType match {
-            case "string" => fields += (dim -> s2Property.innerVal.value.toString)
-            case _ => fields += (dim -> s2Property.innerVal.value)
-          }
+          val innerVal = edge.propertyValue(dim).get.innerVal
+          val cType = s2Property.labelMeta.dataType
+
+          fields += (dim -> JSONParser.innerValToAny(innerVal, cType))
         }
       }
 
@@ -145,61 +145,73 @@ class ESIndexProvider(config: Config)(implicit ec: ExecutionContext) extends Ind
     }
   }
 
-  override def fetchEdgeIds(hasContainers: util.List[HasContainer]): util.List[EdgeId] =
-    Await.result(fetchEdgeIdsAsync(hasContainers), WaitTime)
-
-  override def fetchEdgeIdsAsync(hasContainers: util.List[HasContainer]): Future[util.List[EdgeId]] = {
-    val field = eidField
-    val ids = new java.util.HashSet[EdgeId]
-
-    val queryString = buildQueryString(hasContainers)
+  private def fetchInner[T](queryString: String, offset: Int, limit: Int, indexKey: String, field: String, reads: Reads[T])(validate: (T => Boolean)): Future[util.List[T]] = {
+    val ids = new java.util.HashSet[T]
 
     client.execute {
-      search(EdgeIndexName).query(queryString)
+      search(indexKey).query(queryString).from(offset).limit(limit)
     }.map { ret =>
       ret match {
         case Left(failure) =>
         case Right(results) =>
           results.result.hits.hits.foreach { searchHit =>
             searchHit.sourceAsMap.get(field).foreach { idValue =>
-              val id = Conversions.s2EdgeIdReads.reads(Json.parse(idValue.toString)).get
-
+              val id = reads.reads(Json.parse(idValue.toString)).get
               //TODO: Come up with better way to filter out hits with invalid meta.
-              EdgeId.isValid(id).foreach(ids.add)
+              if (validate(id)) ids.add(id)
             }
           }
       }
 
-      new util.ArrayList[EdgeId](ids)
+      new util.ArrayList(ids)
     }
   }
 
+  override def fetchEdgeIds(hasContainers: util.List[HasContainer]): util.List[EdgeId] =
+    Await.result(fetchEdgeIdsAsync(hasContainers), WaitTime)
+
+  override def fetchEdgeIdsAsync(hasContainers: util.List[HasContainer]): Future[util.List[EdgeId]] = {
+    val field = eidField
+
+    val queryString = buildQueryString(hasContainers)
+    fetchInner[EdgeId](
+      queryString,
+      0,
+      1000,
+      EdgeIndexName,
+      field,
+      Conversions.s2EdgeIdReads)(e => EdgeId.isValid(e).isDefined)
+  }
 
   override def fetchVertexIds(hasContainers: util.List[HasContainer]): util.List[VertexId] =
     Await.result(fetchVertexIdsAsync(hasContainers), WaitTime)
 
   override def fetchVertexIdsAsync(hasContainers: util.List[HasContainer]): Future[util.List[VertexId]] = {
     val field = vidField
-    val ids = new java.util.HashSet[VertexId]
-
     val queryString = buildQueryString(hasContainers)
 
-    client.execute {
-      search(VertexIndexName).query(queryString)
-    }.map { ret =>
-      ret match {
-        case Left(failure) =>
-        case Right(results) =>
-          results.result.hits.hits.foreach { searchHit =>
-            searchHit.sourceAsMap.get(field).foreach { idValue =>
-              val id = Conversions.s2VertexIdReads.reads(Json.parse(idValue.toString)).get
-              //TODO: Come up with better way to filter out hits with invalid meta.
-              VertexId.isValid(id).foreach(ids.add)
-            }
-          }
-      }
+    fetchInner[VertexId](queryString,
+      0,
+      1000,
+      VertexIndexName,
+      field,
+      Conversions.s2VertexIdReads)(v => VertexId.isValid(v).isDefined)
+  }
 
-      new util.ArrayList[VertexId](ids)
+  override def fetchVertexIdsAsyncRaw(vertexQueryParam: VertexQueryParam): Future[util.List[VertexId]] = {
+    val field = vidField
+    val empty = new util.ArrayList[VertexId]()
+
+    vertexQueryParam.searchString match {
+      case Some(queryString) =>
+        fetchInner[VertexId](
+          queryString,
+          vertexQueryParam.offset,
+          vertexQueryParam.limit,
+          VertexIndexName,
+          field,
+          Conversions.s2VertexIdReads)(v => VertexId.isValid(v).isDefined)
+      case None => Future.successful(empty)
     }
   }
 

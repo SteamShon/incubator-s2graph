@@ -27,7 +27,6 @@ import org.apache.s2graph.core.schema.{Label, ServiceColumn}
 import org.apache.s2graph.core.{Management, S2Graph}
 import org.apache.s2graph.core.types.HBaseType
 import org.apache.s2graph.s2jobs.loader.GraphFileOptions
-import org.apache.spark.{SparkConf, SparkContext}
 import org.scalatest.{BeforeAndAfterAll, FunSuite, Matchers}
 
 import scala.util.Try
@@ -65,7 +64,7 @@ class BaseSparkTest extends FunSuite with Matchers with BeforeAndAfterAll with D
     // initialize spark context.
     super.beforeAll()
 
-    s2 = S2GraphHelper.initS2Graph(s2Config)
+    s2 = S2GraphHelper.getS2Graph(s2Config)
     initTestDataFile
   }
 
@@ -103,7 +102,6 @@ class BaseSparkTest extends FunSuite with Matchers with BeforeAndAfterAll with D
   }
 
   def initTestVertexSchema(s2: S2Graph): ServiceColumn = {
-    import scala.collection.JavaConverters._
     /* initialize model for test */
     val management = s2.management
 

@@ -29,9 +29,12 @@ import org.apache.tinkerpop.gremlin.process.traversal.util.TraversalHelper
 import org.apache.tinkerpop.gremlin.structure.T
 
 import scala.collection.JavaConversions._
+import scala.concurrent._
+import scala.concurrent.duration._
 
 class IndexProviderTest extends IntegrateCommon {
   import scala.concurrent.ExecutionContext.Implicits.global
+  import IndexProvider._
   val indexProvider = IndexProvider(config)
   val numOfTry = 1
 
@@ -74,14 +77,19 @@ class IndexProviderTest extends IntegrateCommon {
     Thread.sleep(1000)
 
     (0 until numOfTry).foreach { ith =>
-      val hasContainer = new HasContainer(indexPropsColumnMeta.name, P.eq(Long.box(1)))
+//      val hasContainer = new HasContainer(indexPropsColumnMeta.name, P.eq(Long.box(1)))
+      val hasContainer = new HasContainer(serviceColumnField, P.eq(testColumn.columnName))
 
-      var ids = indexProvider.fetchVertexIds(Seq(hasContainer))
-      ids.head shouldBe vertex.id
+      val f = graph.searchVertices(VertexQueryParam(0, 100, Option(s"${serviceColumnField}:${testColumn.columnName}")))
+      val a = Await.result(f, Duration("60 sec"))
+      println(a)
 
-      ids.foreach { id =>
-        println(s"[Id]: $id")
-      }
+//      var ids = indexProvider.fetchVertexIds(Seq(hasContainer))
+//      ids.head shouldBe vertex.id
+//
+//      ids.foreach { id =>
+//        println(s"[Id]: $id")
+//      }
     }
   }
 

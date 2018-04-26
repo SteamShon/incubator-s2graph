@@ -33,16 +33,17 @@ import org.apache.s2graph.graphql.types.SchemaDef
 import org.slf4j.LoggerFactory
 import sangria.ast.Document
 import sangria.execution._
+import sangria.execution.deferred.DeferredResolver
 import sangria.marshalling.sprayJson._
 import sangria.parser.QueryParser
 import sangria.schema.Schema
 import spray.json.{JsObject, JsString}
 
+import scala.collection.JavaConverters._
 import scala.concurrent.ExecutionContext
 import scala.util.{Failure, Success, Try}
 
 object GraphQLServer {
-
   val className = Schema.getClass.getName
   val logger = LoggerFactory.getLogger(this.getClass)
 
@@ -56,7 +57,11 @@ object GraphQLServer {
   val s2graph = new S2Graph(config)
   val schemaCacheTTL = Try(config.getInt("schemaCacheTTL")).getOrElse(-1)
   val s2Repository = new GraphRepository(s2graph)
-  val schemaCache = new SafeUpdateCache(1, ttl = schemaCacheTTL)
+  val schemaConfig = ConfigFactory.parseMap(Map(
+    SafeUpdateCache.MaxSizeKey -> 1, SafeUpdateCache.TtlKey -> schemaCacheTTL
+  ).asJava)
+
+  val schemaCache = new SafeUpdateCache(schemaConfig)
 
   def endpoint(requestJSON: spray.json.JsValue)(implicit e: ExecutionContext): Route = {
 
@@ -99,13 +104,16 @@ object GraphQLServer {
   private def executeGraphQLQuery(query: Document, op: Option[String], vars: JsObject)(implicit e: ExecutionContext) = {
     val cacheKey = className + "s2Schema"
     val s2schema = schemaCache.withCache(cacheKey, broadcast = false)(createNewSchema())
+    import GraphRepository._
+    val resolver: DeferredResolver[GraphRepository] = DeferredResolver.fetchers(vertexFetcher, edgeFetcher)
 
     Executor.execute(
       s2schema,
       query,
       s2Repository,
       variables = vars,
-      operationName = op
+      operationName = op,
+      deferredResolver = resolver
     )
       .map((res: spray.json.JsValue) => OK -> res)
       .recover {
