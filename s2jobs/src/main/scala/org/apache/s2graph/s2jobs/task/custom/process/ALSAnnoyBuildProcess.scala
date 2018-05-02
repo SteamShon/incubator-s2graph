@@ -1,42 +1,81 @@
 package org.apache.s2graph.s2jobs.task.custom.process
 
-import java.io.{BufferedWriter, File, FileWriter, PrintWriter}
+import java.io.File
 
-import annoy4s.{Angular, Annoy, Euclidean}
+import annoy4s.{Angular, Annoy}
+import org.apache.hadoop.conf.Configuration
+import org.apache.hadoop.fs.{FileSystem, FileUtil, Path}
 import org.apache.s2graph.s2jobs.task.TaskConf
-import org.apache.spark.ml.recommendation.ALS
-import org.apache.spark.sql.{DataFrame, SparkSession}
+import org.apache.spark.ml.recommendation.{ALS, ALSModel}
+import org.apache.spark.sql.{DataFrame, SaveMode, SparkSession}
 
 object ALSAnnoyBuildProcess {
+
   def buildAnnoyIndex(ss: SparkSession,
                       conf: TaskConf,
                       dataFrame: DataFrame): Unit = {
-    import ss.sqlContext.implicits._
+    // annoy tree params.
     val outputPath = conf.options("outputPath")
+    val localInputPath = conf.options("localInputPath")
+    val localIndexPath = conf.options("localIndexPath")
+    val numDimensions = conf.options.getOrElse("dimensions", "10").toInt
+
+    // als model params.
+    val rank = conf.options.getOrElse("rank", numDimensions.toString).toInt
+    val maxIter = conf.options.getOrElse("maxIter", "5").toInt
+    val regParam = conf.options.getOrElse("regParam", "0.01").toDouble
+    val userCol = conf.options.getOrElse("userCol", "userId")
+    val itemCol = conf.options.getOrElse("itemCol", "movieId")
+    val ratingCol = conf.options.getOrElse("ratingCol", "rating")
+
+    assert(rank == numDimensions)
 
     val als = new ALS()
-      .setRank(10)
-      .setMaxIter(5)
-      .setRegParam(0.01)
-      .setUserCol("userId")
-      .setItemCol("movieId")
-      .setRatingCol("rating")
+      .setRank(rank)
+      .setMaxIter(maxIter)
+      .setRegParam(regParam)
+      .setUserCol(userCol)
+      .setItemCol(itemCol)
+      .setRatingCol(ratingCol)
 
     val model = als.fit(dataFrame)
-    val lines = model.itemFactors.map { row =>
-      val id = row.getAs[Int]("id")
-      val vector = row.getAs[Seq[Float]]("features")
-      (Seq(id) ++ vector).mkString(" ")
-    }.collect()
 
-    def writeToFile(fileName: String)(lines: Seq[String]): Unit = {
-      val writer = new PrintWriter(fileName)
-      lines.foreach(line => writer.write(line + "\n"))
-      writer.close
+    saveFeatures(ss, model.itemFactors, outputPath)
+    copyToLocal(ss.sparkContext.hadoopConfiguration, outputPath, localInputPath)
+
+    FileUtil.fullyDelete(new File(localIndexPath))
+
+    Annoy.create[Int](s"${localInputPath}", numDimensions, outputDir = s"$localIndexPath", Angular)
+  }
+
+  def saveFeatures(ss: SparkSession,
+                   dataFrame: DataFrame,
+                   outputPath: String,
+                   idCol: String = "id",
+                   featuresCol: String = "features"): Unit = {
+    import ss.sqlContext.implicits._
+
+    val result = dataFrame.map { row =>
+      val id = row.getAs[Int](idCol)
+      val vector = row.getAs[Seq[Float]](featuresCol)
+      (Seq(id) ++ vector).mkString(" ")
     }
 
-    writeToFile(s"$outputPath/input_vectors")(lines)
-    Annoy.create[Int](s"$outputPath/input_vectors", 10, outputDir = s"$outputPath/annoy_result/", Angular)
+    result.write.mode(SaveMode.Overwrite).csv(outputPath)
+  }
+
+  def copyToLocal(configuration: Configuration,
+                  remoteInputPath: String,
+                  localOutputPath: String,
+                  merge: Boolean = true): Unit  = {
+    val fs = FileSystem.get(configuration)
+    val localFs = FileSystem.getLocal(configuration)
+    localFs.deleteOnExit(new Path(localOutputPath))
+
+    if (merge)
+      FileUtil.copyMerge(fs, new Path(remoteInputPath), localFs, new Path(localOutputPath), false, configuration, "")
+    else
+      fs.copyToLocalFile(new Path(remoteInputPath), new Path(localOutputPath))
   }
 }
 class ALSAnnoyBuildProcess(conf: TaskConf) extends org.apache.s2graph.s2jobs.task.Process(conf) {

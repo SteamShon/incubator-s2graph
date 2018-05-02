@@ -72,11 +72,8 @@ class FetcherTest extends IntegrateCommon{
     val labelName = "annoy_model_fetcher_test"
     val HDFS_CONF_DIR = "./"
 
-//    val remoteIndexFilePath = getClass.getResource(s"/test-index.tree").toURI.getPath
-//    val remoteDictFilePath = getClass.getResource(s"/test-index.dict").toURI.getPath
-//    val remoteIndexFilePath = getClass.getResource(s"/item_factors.ann").toURI.getPath
-    val remoteIndexFilePath = "annoy_test/annoy_result/annoy-index"
-    val remoteDictFilePath = getClass.getResource(s"/movie.dict").toURI.getPath
+    val remoteIndexFilePath = getClass.getResource(s"/test-index.tree").toURI.getPath
+    val remoteDictFilePath = getClass.getResource(s"/test-index.dict").toURI.getPath
 
     val localIndexFilePath = ".test-index.tree"
     val localDictFilePath = ".test-index.dict"
@@ -90,7 +87,7 @@ class FetcherTest extends IntegrateCommon{
 
     val options = s"""{
                      | "importer": {
-                     |   "${ModelManager.ImporterClassNameKey}": "org.apache.s2graph.core.model.IdentityImporter",
+                     |   "${ModelManager.ImporterClassNameKey}": "org.apache.s2graph.core.model.HDFSImporter",
                      |   "${HDFSImporter.HDFSConfDirKey}": "$HDFS_CONF_DIR",
                      |   "${HDFSImporter.PathsKey}": [{
                      |      "src": "${remoteDictFilePath}",
@@ -102,8 +99,8 @@ class FetcherTest extends IntegrateCommon{
                      | },
                      | "fetcher": {
                      |   "${ModelManager.FetcherClassNameKey}": "org.apache.s2graph.core.model.AnnoyModelFetcher",
-                     |   "${AnnoyModelFetcher.IndexFilePathKey}": "${remoteIndexFilePath}",
-                     |   "${AnnoyModelFetcher.DictFilePathKey}": "${remoteDictFilePath}",
+                     |   "${AnnoyModelFetcher.IndexFilePathKey}": "${localIndexFilePath}",
+                     |   "${AnnoyModelFetcher.DictFilePathKey}": "${localDictFilePath}",
                      |   "${AnnoyModelFetcher.DimensionKey}": 10
                      | }
                      |}""".stripMargin
@@ -131,14 +128,14 @@ class FetcherTest extends IntegrateCommon{
 
     Thread.sleep(10000)
 
-    val vertex = graph.elementBuilder.toVertex(service.serviceName, serviceColumn.columnName, "Toy Story (1995)")
+    val vertex = graph.elementBuilder.toVertex(service.serviceName, serviceColumn.columnName, "0")
     val queryParam = QueryParam(labelName = labelName, limit = 5)
 
     val query = Query.toQuery(srcVertices = Seq(vertex), queryParams = Seq(queryParam))
     val stepResult = Await.result(graph.getEdges(query), Duration("60 seconds"))
 
     stepResult.edgeWithScores.foreach { es =>
-      println(es.edge)
+      println(es.edge.tgtVertex.innerIdVal)
     }
 
     FileUtils.deleteQuietly(new File(localIndexFilePath))
