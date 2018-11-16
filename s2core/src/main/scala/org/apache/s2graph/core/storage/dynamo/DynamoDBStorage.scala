@@ -3,10 +3,12 @@ package org.apache.s2graph.core.storage.dynamo
 import com.typesafe.config.Config
 import org.apache.s2graph.core._
 import org.apache.s2graph.core.storage._
-import com.amazonaws.services.dynamodbv2._
+import software.amazon.awssdk.services.dynamodb._
 
 object DynamoDBStorage {
-
+  def init(config: Config): DynamoDbAsyncClient = {
+    ???
+  }
 }
 class DynamoDBStorage(override val graph: S2GraphLike,
                       override val config: Config) extends Storage(graph, config) {
