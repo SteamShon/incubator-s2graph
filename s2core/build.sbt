@@ -58,7 +58,9 @@ libraryDependencies ++= Seq(
   "org.scala-lang.modules" %% "scala-pickling" % "0.10.1",
   "net.pishen" %% "annoy4s" % annoy4sVersion,
   "org.tensorflow" % "tensorflow" % tensorflowVersion,
-  "io.reactivex" %% "rxscala" % "0.26.5"
+  "io.reactivex" %% "rxscala" % "0.26.5",
+  "com.amazonaws" % "DynamoDBLocal" % "1.11.119" % Test,
+  "software.amazon.awssdk" % "aws-sdk-java" % "2.0.0-preview-13"
 )
 
 libraryDependencies := {
@@ -72,3 +74,5 @@ libraryDependencies := {
       libraryDependencies.value
   }
 }
+
+resolvers += "DynamoDB Local Release Repository" at "https://s3-us-west-2.amazonaws.com/dynamodb-local/release"

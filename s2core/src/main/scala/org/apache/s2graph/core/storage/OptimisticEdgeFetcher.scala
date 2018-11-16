@@ -26,31 +26,41 @@ import org.apache.s2graph.core.utils.logger
 import scala.concurrent.{ExecutionContext, Future}
 
 trait OptimisticEdgeFetcher {
+  /**
+    * translate storage specific data hold class into IndexEdge/SnapshotEdge/Vertex.
+    */
   val io: StorageIO
-  protected def fetchKeyValues(queryRequest: QueryRequest,
-                               edge: S2EdgeLike)(implicit ec: ExecutionContext): Future[Seq[SKeyValue]]
 
-  def fetchSnapshotEdgeInner(edge: S2EdgeLike)(implicit ec: ExecutionContext): Future[(Option[S2EdgeLike], Option[SKeyValue])] = {
-    val queryParam = QueryParam(labelName = edge.innerLabel.label,
-      direction = GraphUtil.fromDirection(edge.getDir()),
-      tgtVertexIdOpt = Option(edge.tgtVertex.innerIdVal),
-      cacheTTLInMillis = -1)
-    val q = Query.toQuery(Seq(edge.srcVertex), Seq(queryParam))
-    val queryRequest = QueryRequest(q, 0, edge.srcVertex, queryParam)
+  /**
+    *
+    * @param queryRequest
+    * @param edge
+    * @param ec
+    */
+  def fetchKeyValues(queryRequest: QueryRequest,
+                     edge: S2EdgeLike)(implicit ec: ExecutionContext): Future[Seq[SKeyValue]]
 
-    fetchKeyValues(queryRequest, edge).map { kvs =>
-      val (edgeOpt, kvOpt) =
-        if (kvs.isEmpty) (None, None)
-        else {
-          import CanSKeyValue._
-          val snapshotEdgeOpt = io.toSnapshotEdge(kvs.head, queryRequest, isInnerCall = true, parentEdges = Nil)
-          val _kvOpt = kvs.headOption
-          (snapshotEdgeOpt, _kvOpt)
-        }
-      (edgeOpt, kvOpt)
-    } recoverWith { case ex: Throwable =>
-      logger.error(s"fetchQueryParam failed. fallback return.", ex)
-      throw new FetchTimeoutException(s"${edge.toLogString}")
-    }
-  }
+//  def fetchSnapshotEdgeInner(edge: S2EdgeLike)(implicit ec: ExecutionContext): Future[(Option[S2EdgeLike], Option[SKeyValue])] = {
+//    val queryParam = QueryParam(labelName = edge.innerLabel.label,
+//      direction = GraphUtil.fromDirection(edge.getDir()),
+//      tgtVertexIdOpt = Option(edge.tgtVertex.innerIdVal),
+//      cacheTTLInMillis = -1)
+//    val q = Query.toQuery(Seq(edge.srcVertex), Seq(queryParam))
+//    val queryRequest = QueryRequest(q, 0, edge.srcVertex, queryParam)
+//
+//    fetchKeyValues(queryRequest, edge).map { kvs =>
+//      val (edgeOpt, kvOpt) =
+//        if (kvs.isEmpty) (None, None)
+//        else {
+//          import CanSKeyValue._
+//          val snapshotEdgeOpt = io.toSnapshotEdge(kvs.head, queryRequest, isInnerCall = true, parentEdges = Nil)
+//          val _kvOpt = kvs.headOption
+//          (snapshotEdgeOpt, _kvOpt)
+//        }
+//      (edgeOpt, kvOpt)
+//    } recoverWith { case ex: Throwable =>
+//      logger.error(s"fetchQueryParam failed. fallback return.", ex)
+//      throw new FetchTimeoutException(s"${edge.toLogString}")
+//    }
+//  }
 }
