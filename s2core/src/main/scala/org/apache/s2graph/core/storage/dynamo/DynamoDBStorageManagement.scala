@@ -2,8 +2,14 @@ package org.apache.s2graph.core.storage.dynamo
 
 import com.typesafe.config.Config
 import org.apache.s2graph.core.storage.StorageManagement
+import software.amazon.awssdk.services.dynamodb.DynamoDbAsyncClient
+import software.amazon.awssdk.services.dynamodb.model.CreateTableRequest
 
-class DynamoDBStorageManagement extends StorageManagement {
+import scala.compat.java8.FutureConverters._
+import scala.concurrent.Await
+import scala.concurrent.duration.Duration
+
+class DynamoDBStorageManagement(client: DynamoDbAsyncClient) extends StorageManagement {
   /**
     * this method need to be called when client shutdown. this is responsible to cleanUp the resources
     * such as client into storage.
@@ -16,7 +22,14 @@ class DynamoDBStorageManagement extends StorageManagement {
     *
     * @param config
     */
-  override def createTable(config: Config, tableNameStr: String): Unit = ???
+  override def createTable(config: Config, tableNameStr: String): Unit = {
+    val request = CreateTableRequest.builder()
+      .tableName(tableNameStr)
+      .build()
+
+    val future = toScala(client.createTable(request))
+    Await.result(future, Duration("60 seconds"))
+  }
 
   /**
     *

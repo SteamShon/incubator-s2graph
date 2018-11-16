@@ -12,6 +12,8 @@ object DynamoDBStorage {
 }
 class DynamoDBStorage(override val graph: S2GraphLike,
                       override val config: Config) extends Storage(graph, config) {
+
+  private lazy val client: DynamoDbAsyncClient = DynamoDBStorage.init(config)
   private lazy val optimisticEdgeFetcher = new DynamoDBOptimisticEdgeFetcher
   private lazy val optimisitcMutator = new DynamoDBOptimisticMutator
 
