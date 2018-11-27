@@ -29,13 +29,20 @@ trait S2GraphMutateRoute {
       complete(StatusCodes.BadRequest -> ex.getMessage)
   }
 
-  lazy val mutateVertex = path("vertex" / Segment) { operation =>
+  lazy val mutateVertex = path("vertex" / Segments) { params =>
+    val (operation, serviceNameOpt, columnNameOpt) = params match {
+      case operation :: serviceName :: columnName :: Nil =>
+        (operation, Option(serviceName), Option(columnName))
+      case operation :: Nil =>
+        (operation, None, None)
+    }
+
     entity(as[String]) { body =>
       val payload = Json.parse(body)
 
       implicit val ec = s2graph.ec
 
-      val future = tryMutates(payload, operation).map { mutateResponses =>
+      val future = tryMutates(payload, operation, serviceNameOpt, columnNameOpt).map { mutateResponses =>
         HttpResponse(
           status = StatusCodes.OK,
           entity = HttpEntity(ContentTypes.`application/json`, Json.toJson(mutateResponses).toString)
