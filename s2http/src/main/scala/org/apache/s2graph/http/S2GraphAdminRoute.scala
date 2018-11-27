@@ -93,6 +93,20 @@ trait S2GraphAdminRoute {
     }
   }
 
+  lazy val createServiceColumn = path("createServiceColumn") {
+    entity(as[String]) { body =>
+      val params = Json.parse(body)
+
+      val parseTry = requestParser.toServiceColumnElements(params)
+      val serviceColumnTry = for {
+        (serviceName, columnName, columnType, props) <- parseTry
+        serviceColumn <- Try(management.createServiceColumn(serviceName, columnName, columnType, props))
+      } yield serviceColumn
+
+      complete(toHttpEntity(serviceColumnTry))
+    }
+  }
+
   lazy val createLabel = path("createLabel") {
     entity(as[String]) { body =>
       val params = Json.parse(body)
@@ -115,6 +129,7 @@ trait S2GraphAdminRoute {
     } ~ post {
       concat(
         createService,
+        createServiceColumn,
         createLabel
       )
     }
